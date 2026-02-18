@@ -10,7 +10,7 @@ Layout:
 │  [1] Remember to follow up on Q3 budget      │
 │  > _                                         │
 ├─────────────────────────────────────────────┤
-│  Ctrl+S stop & save  |  Ctrl+M change mic   │
+│  Ctrl+S stop & save  |  Ctrl+P palette           │
 │  Ctrl+C cancel                               │
 └─────────────────────────────────────────────┘
 """
@@ -18,14 +18,14 @@ Layout:
 from __future__ import annotations
 
 import time
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 import sounddevice as sd
 from textual import work
-from textual.app import App, ComposeResult
+from textual.app import App, ComposeResult, get_system_commands_provider
 from textual.binding import Binding
+from textual.command import DiscoveryHit, Hit, Provider
 from textual.containers import Vertical, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Static, Input, Label, Footer, Header, OptionList
@@ -40,6 +40,29 @@ from liscribe.recorder import (
     _find_blackhole_device,
 )
 from liscribe.waveform import WaveformMonitor
+
+
+class LiscribeCommandsProvider(Provider):
+    """Command palette provider for liscribe actions (e.g. Change microphone)."""
+
+    async def search(self, query: str):
+        matcher = self.matcher(query)
+        if (score := matcher.match("Change microphone")) > 0:
+            app = self.app
+            yield Hit(
+                score,
+                matcher.highlight("Change microphone"),
+                lambda app=app: app.action_change_mic(),
+                help="Open mic selector",
+            )
+
+    async def discover(self):
+        app = self.app
+        yield DiscoveryHit(
+            "Change microphone",
+            lambda app=app: app.action_change_mic(),
+            help="Open mic selector",
+        )
 
 
 class MicSelectScreen(ModalScreen[int | None]):
@@ -75,6 +98,8 @@ class MicSelectScreen(ModalScreen[int | None]):
 class RecordingApp(App[str | None]):
     """Main recording TUI application."""
 
+    COMMANDS = App.COMMANDS | {LiscribeCommandsProvider}
+
     CSS = """
     #status-bar {
         dock: top;
@@ -109,6 +134,7 @@ class RecordingApp(App[str | None]):
         align: center middle;
         width: 60;
         height: auto;
+        min-height: 8;
         max-height: 20;
         background: $surface;
         border: tall $accent;
@@ -122,13 +148,13 @@ class RecordingApp(App[str | None]):
 
     #mic-list {
         height: auto;
+        min-height: 3;
         max-height: 15;
     }
     """
 
     BINDINGS = [
         Binding("ctrl+s", "stop_save", "Stop & Save"),
-        Binding("ctrl+m", "change_mic", "Change Mic"),
         Binding("ctrl+c", "cancel", "Cancel"),
     ]
 
@@ -263,7 +289,7 @@ class RecordingApp(App[str | None]):
         self.exit(self._saved_path)
 
     def action_change_mic(self) -> None:
-        """Open mic selector."""
+        """Open mic selector (used by command palette)."""
         current = self.session.device_idx if self.session else None
         self.push_screen(MicSelectScreen(current), self._on_mic_selected)
 
@@ -272,6 +298,8 @@ class RecordingApp(App[str | None]):
             self.session.switch_mic(device_idx)
             dev_info = sd.query_devices(device_idx)
             self.notify(f"Switched to: {dev_info['name']}")
+        else:
+            self.notify("Mic unchanged")
 
     def action_cancel(self) -> None:
         """Cancel recording without saving."""

@@ -22,7 +22,7 @@ todos:
     status: completed
   - id: phase-7-output-polish
     content: "Phase 7: Output and polish -- clipboard, notes, progress, error handling, logging, tests, docs"
-    status: in_progress
+    status: completed
 isProject: false
 ---
 

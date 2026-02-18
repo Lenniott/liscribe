@@ -9,3 +9,4 @@ build/
 *.log
 .env
 .DS_Store
+/transcripts-tests
