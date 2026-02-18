@@ -59,11 +59,15 @@ def main(ctx: click.Context, folder: str | None, speaker: bool, mic: str | None,
 
     # Start recording via TUI
     from liscribe.app import RecordingApp
-    app = RecordingApp(folder=folder, speaker=speaker, mic=mic)
+    app = RecordingApp(folder=folder, speaker=speaker, mic=mic, prog_name=ctx.info_name)
     wav_path = app.run()
 
     if not wav_path:
-        click.echo("Recording cancelled.")
+        exit_msg = getattr(app, "_exit_error_message", None)
+        if exit_msg:
+            click.echo(exit_msg, err=True)
+        else:
+            click.echo("Recording cancelled.")
         return
 
     click.echo(f"Audio saved: {wav_path}")
@@ -155,7 +159,8 @@ def setup() -> None:
 
 @main.command()
 @click.option("--show", is_flag=True, help="Show current config values.")
-def config(show: bool) -> None:
+@click.pass_context
+def config(ctx: click.Context, show: bool) -> None:
     """Show or edit configuration."""
     if show:
         cfg = load_config()
@@ -163,16 +168,17 @@ def config(show: bool) -> None:
             click.echo(f"  {key}: {val}")
     else:
         click.echo(f"Config file: {CONFIG_PATH}")
-        click.echo("Edit it directly, or use 'rec config --show' to view current values.")
+        click.echo(f"Edit it directly, or use '{ctx.info_name} config --show' to view current values.")
 
 
 @main.command()
-def devices() -> None:
+@click.pass_context
+def devices(ctx: click.Context) -> None:
     """List available audio input devices."""
     try:
         import sounddevice as sd
     except OSError:
-        click.echo("Error: PortAudio not found. Run 'rec setup' for instructions.", err=True)
+        click.echo(f"Error: PortAudio not found. Run '{ctx.info_name} setup' for instructions.", err=True)
         sys.exit(1)
 
     devs = sd.query_devices()

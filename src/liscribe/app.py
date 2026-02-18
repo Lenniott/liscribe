@@ -18,8 +18,17 @@ Layout:
 
 from __future__ import annotations
 
+import json
 import time
 from typing import Any
+
+# #region agent log
+_DEBUG_LOG = "/Users/benjamin/Desktop/Scratch/liscribe/.cursor/debug-090741.log"
+
+def _dlog(msg: str, data: dict | None = None, hypothesis_id: str | None = None, location: str = "app.py") -> None:
+    with open(_DEBUG_LOG, "a") as f:
+        f.write(json.dumps({"sessionId": "090741", "message": msg, "data": data or {}, "hypothesisId": hypothesis_id, "timestamp": int(time.time() * 1000), "location": location}) + "\n")
+# #endregion
 
 import numpy as np
 import sounddevice as sd
@@ -117,7 +126,7 @@ class RecordingApp(App[str | None]):
         color: $text-muted;
     }
 
-    #waveform {
+    #waveform, #waveform-speaker {
         height: 3;
         padding: 0 1;
         background: $surface;
@@ -171,21 +180,27 @@ class RecordingApp(App[str | None]):
         folder: str,
         speaker: bool = False,
         mic: str | None = None,
+        prog_name: str = "rec",
     ):
         super().__init__()
         self.folder = folder
         self.speaker = speaker
         self.mic_arg = mic
+        self.prog_name = prog_name
         self.session: RecordingSession | None = None
         self.waveform = WaveformMonitor()
+        self.waveform_speaker = WaveformMonitor()
         self._note_collection = NoteCollection()
         self._start_time: float = 0.0
         self._saved_path: str | None = None
+        self._exit_error_message: str | None = None
 
     def compose(self) -> ComposeResult:
         yield Static("", id="status-bar")
         yield Static("Mic: —", id="mic-bar")
         yield Static("", id="waveform")
+        if self.speaker:
+            yield Static("", id="waveform-speaker")
         yield Vertical(
             Static("", id="notes-log"),
             Input(placeholder="Type a note, press Enter...", id="note-input"),
@@ -199,6 +214,9 @@ class RecordingApp(App[str | None]):
 
     def _start_recording(self) -> None:
         """Initialize and start the recording session."""
+        # #region agent log
+        _dlog("_start_recording entry", {"speaker": self.speaker, "mic_arg": self.mic_arg, "folder": self.folder}, "entry", "app.py:_start_recording")
+        # #endregion
         self.session = RecordingSession(
             folder=self.folder,
             speaker=self.speaker,
@@ -210,7 +228,14 @@ class RecordingApp(App[str | None]):
         # Resolve mic
         try:
             self.session.device_idx = resolve_device(self.mic_arg)
+            # #region agent log
+            _dlog("resolve_device ok", {"device_idx": self.session.device_idx}, "C", "app.py:_start_recording")
+            # #endregion
         except ValueError as exc:
+            # #region agent log
+            _dlog("resolve_device ValueError", {"exc": str(exc)}, "C", "app.py:_start_recording")
+            # #endregion
+            self._exit_error_message = str(exc)
             self.notify(str(exc), severity="error")
             self.exit(None)
             return
@@ -218,18 +243,29 @@ class RecordingApp(App[str | None]):
         # Speaker setup
         if self.speaker:
             self.session.blackhole_idx = _find_blackhole_device(self.session.blackhole_name)
+            # #region agent log
+            _dlog("blackhole lookup", {"blackhole_idx": self.session.blackhole_idx, "blackhole_name": self.session.blackhole_name}, "A", "app.py:_start_recording")
+            # #endregion
             if self.session.blackhole_idx is None:
-                self.notify(
-                    f"BlackHole '{self.session.blackhole_name}' not found. Run 'rec setup'.",
-                    severity="error",
+                self._exit_error_message = (
+                    f"BlackHole '{self.session.blackhole_name}' not found. Run '{self.prog_name} setup'."
                 )
+                self.notify(self._exit_error_message, severity="error")
                 self.exit(None)
                 return
 
             self.session._original_output = get_current_output_device()
-            if not set_output_device(self.session.speaker_device_name):
+            set_ok = set_output_device(self.session.speaker_device_name)
+            # #region agent log
+            _dlog("set_output_device", {"ok": set_ok, "speaker_device_name": self.session.speaker_device_name, "original_output": self.session._original_output}, "B", "app.py:_start_recording")
+            # #endregion
+            if not set_ok:
+                self._exit_error_message = (
+                    f"Could not switch to '{self.session.speaker_device_name}'. "
+                    f"Run '{self.prog_name} setup'. List output devices: SwitchAudioSource -a -t output"
+                )
                 self.notify(
-                    f"Could not switch to '{self.session.speaker_device_name}'. Run 'rec setup'.",
+                    f"Could not switch to '{self.session.speaker_device_name}'. Run '{self.prog_name} setup'.",
                     severity="error",
                 )
                 self.exit(None)
@@ -244,13 +280,29 @@ class RecordingApp(App[str | None]):
 
         self.session._mic_callback = patched_mic_cb
 
+        if self.speaker:
+            original_speaker_cb = self.session._speaker_callback
+
+            def patched_speaker_cb(indata: np.ndarray, frames: int, time_info: Any, status: sd.CallbackFlags) -> None:
+                original_speaker_cb(indata, frames, time_info, status)
+                self.waveform_speaker.push(indata)
+
+            self.session._speaker_callback = patched_speaker_cb
+
         # Start streams
         try:
             self.session._mic_stream = self.session._open_mic_stream(self.session.device_idx)
             if self.speaker and self.session.blackhole_idx is not None:
                 self.session._speaker_stream = self.session._open_speaker_stream(self.session.blackhole_idx)
+            # #region agent log
+            _dlog("streams opened ok", {}, "D", "app.py:_start_recording")
+            # #endregion
         except Exception as exc:
-            self.notify(f"Error starting recording: {exc}", severity="error")
+            # #region agent log
+            _dlog("stream open exception", {"exc": str(exc), "exc_type": type(exc).__name__}, "D", "app.py:_start_recording")
+            # #endregion
+            self._exit_error_message = f"Error starting recording: {exc}"
+            self.notify(self._exit_error_message, severity="error")
             self.session._restore_audio_output()
             self.exit(None)
             return
@@ -278,8 +330,12 @@ class RecordingApp(App[str | None]):
         self.query_one("#status-bar", Static).update(status)
         self.query_one("#mic-bar", Static).update(f"Mic: {dev_name}")
 
-        waveform_str = self.waveform.render()
-        self.query_one("#waveform", Static).update(f"  {waveform_str}")
+        if self.speaker:
+            self.query_one("#waveform", Static).update(f"  Mic:     {self.waveform.render()}")
+            self.query_one("#waveform-speaker", Static).update(f"  Speaker: {self.waveform_speaker.render()}")
+        else:
+            waveform_str = self.waveform.render()
+            self.query_one("#waveform", Static).update(f"  {waveform_str}")
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle note submission."""
@@ -315,6 +371,9 @@ class RecordingApp(App[str | None]):
 
     def action_cancel(self) -> None:
         """Cancel recording without saving."""
+        # #region agent log
+        _dlog("action_cancel called", {"has_session": self.session is not None}, "E", "app.py:action_cancel")
+        # #endregion
         if self.session:
             # Stop streams without saving
             for stream in (self.session._mic_stream, self.session._speaker_stream):
