@@ -28,6 +28,14 @@ class NoteCollection:
     def start(self) -> None:
         self._start_time = time.time()
 
+    def start_from(self, wall_time: float) -> None:
+        """Set the reference start time to an external wall-clock value.
+
+        Use this to align note timestamps with the recording start time
+        that the app already tracks.
+        """
+        self._start_time = wall_time
+
     def add(self, text: str) -> Note:
         idx = len(self._notes) + 1
         elapsed = time.time() - self._start_time if self._start_time else 0.0
@@ -43,14 +51,17 @@ class NoteCollection:
     def texts(self) -> list[str]:
         return [n.text for n in self._notes]
 
-    def as_footnotes(self) -> str:
+    def as_footnotes(self, include_time: bool = True) -> str:
         """Render all notes as Markdown footnotes."""
         if not self._notes:
             return ""
         lines = []
         for note in self._notes:
-            mins, secs = divmod(int(note.timestamp), 60)
-            lines.append(f"[^{note.index}]: {note.text} (at {mins}:{secs:02d})")
+            if include_time:
+                mins, secs = divmod(int(note.timestamp), 60)
+                lines.append(f"[^{note.index}]: {note.text} (at {mins}:{secs:02d})")
+            else:
+                lines.append(f"[^{note.index}]: {note.text}")
         return "\n".join(lines)
 
     def clear(self) -> None:

@@ -67,7 +67,7 @@ def main(ctx: click.Context, folder: str | None, speaker: bool, mic: str | None,
         return
 
     click.echo(f"Audio saved: {wav_path}")
-    notes = app.notes
+    timestamped_notes = app.notes
 
     # Transcribe
     click.echo("Transcribing...")
@@ -93,7 +93,7 @@ def main(ctx: click.Context, folder: str | None, speaker: bool, mic: str | None,
     md_path = save_transcript(
         result=result,
         wav_path=wav_path,
-        notes=notes if notes else None,
+        notes=timestamped_notes if timestamped_notes else None,
         mic_name=mic_name,
         speaker_mode=speaker,
     )

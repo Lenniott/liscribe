@@ -30,6 +30,21 @@ class TestNoteCollection:
         assert "[^1]: Check budget" in text
         assert "[^2]: Email Sarah" in text
 
+    def test_footnotes_without_time(self):
+        nc = NoteCollection()
+        nc.start()
+        nc.add("Check budget")
+        text = nc.as_footnotes(include_time=False)
+        assert "[^1]: Check budget" in text
+        assert "(at " not in text
+
+    def test_start_from_external_time(self):
+        nc = NoteCollection()
+        base = time.time() - 10.0
+        nc.start_from(base)
+        note = nc.add("Late note")
+        assert note.timestamp >= 10.0
+
     def test_clear(self):
         nc = NoteCollection()
         nc.start()

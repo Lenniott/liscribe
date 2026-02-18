@@ -32,6 +32,7 @@ from textual.widgets import Static, Input, Label, Footer, Header, OptionList
 from textual.widgets.option_list import Option
 
 from liscribe.config import load_config
+from liscribe.notes import Note, NoteCollection
 from liscribe.platform_setup import get_current_output_device, set_output_device
 from liscribe.recorder import (
     RecordingSession,
@@ -170,7 +171,7 @@ class RecordingApp(App[str | None]):
         self.mic_arg = mic
         self.session: RecordingSession | None = None
         self.waveform = WaveformMonitor()
-        self._notes: list[str] = []
+        self._note_collection = NoteCollection()
         self._start_time: float = 0.0
         self._saved_path: str | None = None
 
@@ -248,6 +249,7 @@ class RecordingApp(App[str | None]):
 
         self._start_time = time.time()
         self.session._start_time = self._start_time
+        self._note_collection.start_from(self._start_time)
 
     def _update_display(self) -> None:
         """Update status bar and waveform (called every 100ms)."""
@@ -275,9 +277,10 @@ class RecordingApp(App[str | None]):
         text = event.value.strip()
         if not text:
             return
-        self._notes.append(text)
-        idx = len(self._notes)
-        notes_display = "\n".join(f"  [{i+1}] {n}" for i, n in enumerate(self._notes))
+        self._note_collection.add(text)
+        notes_display = "\n".join(
+            f"  [{n.index}] {n.text}" for n in self._note_collection.notes
+        )
         self.query_one("#notes-log", Static).update(notes_display)
         event.input.value = ""
 
@@ -315,5 +318,5 @@ class RecordingApp(App[str | None]):
         self.exit(None)
 
     @property
-    def notes(self) -> list[str]:
-        return list(self._notes)
+    def notes(self) -> list[Note]:
+        return self._note_collection.notes
