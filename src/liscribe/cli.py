@@ -116,9 +116,19 @@ def main(ctx: click.Context, folder: str | None, speaker: bool, mic: str | None,
         click.echo(f"Audio file kept at: {wav_path}")
 
 
+WHISPER_MODELS = [
+    ("tiny",   "~75 MB,  fastest, least accurate"),
+    ("base",   "~150 MB, good balance for short recordings"),
+    ("small",  "~500 MB, higher accuracy"),
+    ("medium", "~1.5 GB, near-best accuracy, slower"),
+    ("large",  "~3 GB,   best accuracy, slowest"),
+]
+
+
 @main.command()
 def setup() -> None:
     """Check dependencies and initialise config."""
+    from liscribe.config import save_config
     from liscribe.platform_setup import run_all_checks
 
     created = init_config_if_missing()
@@ -142,11 +152,40 @@ def setup() -> None:
     else:
         click.echo("Some checks failed. See above for install instructions.")
 
-    # Offer to download whisper model
-    click.echo()
+    # --- Whisper model selection ---
     cfg = load_config()
-    model_size = cfg.get("whisper_model", "base")
-    click.echo(f"Whisper model: {model_size}")
+    current_model = cfg.get("whisper_model", "base")
+
+    click.echo()
+    click.echo("Available whisper models:")
+    model_names = []
+    for i, (name, desc) in enumerate(WHISPER_MODELS, 1):
+        marker = " (current)" if name == current_model else ""
+        click.echo(f"  {i}. {name:<8} {desc}{marker}")
+        model_names.append(name)
+
+    model_choice = click.prompt(
+        "Choose a model",
+        type=click.IntRange(1, len(WHISPER_MODELS)),
+        default=model_names.index(current_model) + 1 if current_model in model_names else 2,
+    )
+    model_size = model_names[model_choice - 1]
+
+    # --- Language selection ---
+    current_lang = cfg.get("language", "en")
+    click.echo()
+    lang = click.prompt(
+        "Transcription language (ISO 639-1 code, e.g. en, fr, de, or 'auto')",
+        default=current_lang,
+    ).strip().lower()
+
+    # Save choices
+    cfg["whisper_model"] = model_size
+    cfg["language"] = lang
+    save_config(cfg)
+    click.echo(f"\nConfig saved: model={model_size}, language={lang}")
+
+    # Offer to download model
     if click.confirm(f"Download/verify the '{model_size}' model now?", default=True):
         click.echo(f"Loading model '{model_size}' (downloads on first use)...")
         from liscribe.transcriber import load_model

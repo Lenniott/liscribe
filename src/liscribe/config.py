@@ -45,6 +45,10 @@ DEFAULTS: dict[str, dict[str, Any]] = {
         "value": "BlackHole 2ch",
         "description": "Name of the BlackHole virtual audio device for speaker capture.",
     },
+    "language": {
+        "value": "en",
+        "description": "Transcription language (ISO 639-1 code, e.g. en, fr, de). Use 'auto' for auto-detect.",
+    },
 }
 
 

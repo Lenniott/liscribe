@@ -87,12 +87,17 @@ def transcribe(
     if model is None:
         model = load_model(model_size)
 
-    logger.info("Transcribing: %s", wav_path)
+    cfg = load_config()
+    lang = cfg.get("language", "en")
+    if lang == "auto":
+        lang = None
+
+    logger.info("Transcribing: %s (language=%s)", wav_path, lang or "auto")
 
     segments_iter, info = model.transcribe(
         str(wav_path),
         beam_size=5,
-        language=None,  # auto-detect
+        language=lang,
         vad_filter=True,
     )
 
