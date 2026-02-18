@@ -4,25 +4,25 @@ overview: Build liscribe for macOS first -- a 100% offline terminal recorder tha
 todos:
   - id: phase-1-scaffolding
     content: "Phase 1: Project scaffolding -- pyproject.toml, venv, .gitignore, README, package skeleton, rec launcher that uses venv"
-    status: in_progress
+    status: completed
   - id: phase-2-config-platform
     content: "Phase 2: Config and platform detection (config.py, platform_setup.py), CLI skeleton with -f and -s"
-    status: pending
+    status: completed
   - id: phase-3-recording-core
     content: "Phase 3: Recording foundation -- list/select mics, change mic mid-recording, record to WAV, save to -f path (mic only)"
-    status: pending
+    status: completed
   - id: phase-4-speaker-capture
     content: "Phase 4: Speaker capture -- -s flag, switch output to multi-output (BlackHole), record mic + system audio, save to path"
-    status: pending
+    status: completed
   - id: phase-5-recording-tui
     content: "Phase 5: Recording TUI -- waveform, current mic display, change mic mid-session, keybindings"
-    status: pending
+    status: completed
   - id: phase-6-transcription
     content: "Phase 6: Transcription -- faster-whisper, save transcript to MD in same folder, then remove audio files only after MD saved"
-    status: pending
+    status: completed
   - id: phase-7-output-polish
     content: "Phase 7: Output and polish -- clipboard, notes, progress, error handling, logging, tests, docs"
-    status: pending
+    status: in_progress
 isProject: false
 ---
 
