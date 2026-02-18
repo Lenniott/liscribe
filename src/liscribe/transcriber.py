@@ -10,8 +10,12 @@ Responsibilities:
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 from typing import Callable
+
+# Optional progress info for ETA: segment_index, total_estimated, elapsed_sec, eta_remaining_sec
+ProgressInfo = dict
 
 from liscribe.config import load_config
 
@@ -86,11 +90,15 @@ def load_model(model_size: str | None = None):
     return model
 
 
+# Average segment length in seconds used to estimate total segment count (for ETA).
+AVG_SEGMENT_SEC = 6.0
+
+
 def transcribe(
     audio_path: str | Path,
     model=None,
     model_size: str | None = None,
-    on_progress: Callable[[float], None] | None = None,
+    on_progress: Callable[..., None] | None = None,
 ) -> TranscriptionResult:
     """Transcribe an audio file to text.
 
@@ -98,7 +106,8 @@ def transcribe(
         audio_path: Path to the audio file (WAV, MP3, M4A, OGG, etc.).
         model: Pre-loaded WhisperModel. If None, loads one.
         model_size: Model size to use if loading. Defaults to config.
-        on_progress: Callback with progress 0.0–1.0. Called per segment.
+        on_progress: Callback(progress_0_1, info=None). progress_0_1 is 0.0–1.0.
+            Optional info dict: segment_index, total_estimated, elapsed_sec, eta_remaining_sec.
 
     Returns:
         TranscriptionResult with full text, segments, language, and duration.
@@ -132,6 +141,29 @@ def transcribe(
     segments = []
     text_parts = []
 
+    # Estimate total segments for ETA (faster_whisper does not expose N).
+    N = max(1, int(total_duration / AVG_SEGMENT_SEC))
+    start_time = time.perf_counter()
+
+    def _report_progress(segment_index: int, total_estimated: int, elapsed_sec: float) -> None:
+        if not on_progress:
+            return
+        progress_float = min(segment_index / total_estimated, 1.0) if total_estimated else 0.0
+        eta_remaining = (elapsed_sec * (total_estimated - segment_index) / segment_index) if segment_index > 0 else None
+        info: ProgressInfo = {
+            "segment_index": segment_index,
+            "total_estimated": total_estimated,
+            "elapsed_sec": elapsed_sec,
+            "eta_remaining_sec": eta_remaining,
+        }
+        try:
+            on_progress(progress_float, info)
+        except TypeError:
+            on_progress(progress_float)
+
+    if on_progress:
+        _report_progress(0, N, 0.0)
+
     for seg in segments_iter:
         segments.append({
             "start": seg.start,
@@ -140,14 +172,15 @@ def transcribe(
         })
         text_parts.append(seg.text.strip())
 
-        if on_progress and total_duration > 0:
-            progress = min(seg.end / total_duration, 1.0)
-            on_progress(progress)
+        if on_progress:
+            i = len(segments)
+            elapsed = time.perf_counter() - start_time
+            _report_progress(i, N, elapsed)
 
     full_text = " ".join(text_parts)
 
     if on_progress:
-        on_progress(1.0)
+        _report_progress(N, N, time.perf_counter() - start_time)
 
     logger.info(
         "Transcription complete: %d segments, %d words, language=%s",

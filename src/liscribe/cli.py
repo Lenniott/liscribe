@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import sys
-import threading
 import time
 import wave
 from pathlib import Path
@@ -20,6 +19,7 @@ from rich.progress import (
     TaskProgressColumn,
     TextColumn,
     TimeElapsedColumn,
+    TimeRemainingColumn,
 )
 
 from liscribe import __version__
@@ -189,7 +189,7 @@ def _audio_description(audio_path: Path) -> str:
 
 
 def _transcribe_with_progress(audio_path: str, model_size: str, label: str):
-    """Load model (spinner), then transcribe with a smooth rich progress bar."""
+    """Load model (spinner), then transcribe with segment-based progress and ETA."""
     from liscribe.transcriber import load_model, transcribe
 
     with console.status(f"  Loading [bold]{model_size}[/bold] model..."):
@@ -200,52 +200,40 @@ def _transcribe_with_progress(audio_path: str, model_size: str, label: str):
         BarColumn(bar_width=26),
         TaskProgressColumn(),
         TimeElapsedColumn(),
+        TimeRemainingColumn(),
         console=console,
         transient=False,
     )
 
-    task = progress.add_task("", total=1000)
-    actual_pos = [0.0]
-    last_time = [time.monotonic()]
-    rate = [0.0]
-    done = threading.Event()
+    # Start with placeholder total; transcriber will pass total_estimated in first callback.
+    task = progress.add_task("", total=1000, completed=0)
+    task_initialized: list[bool] = [False]
+    total_estimated_ref: list[int] = [1000]
 
-    def on_progress(p: float) -> None:
-        now = time.monotonic()
-        dt = now - last_time[0]
-        if dt > 0 and p > actual_pos[0]:
-            rate[0] = (p - actual_pos[0]) / dt
-        actual_pos[0] = p
-        last_time[0] = now
-        progress.update(task, completed=int(p * 1000))
-
-    def _interpolate():
-        """Smoothly advance the bar between segment callbacks."""
-        while not done.is_set():
-            time.sleep(0.15)
-            if done.is_set():
-                break
-            now = time.monotonic()
-            dt = now - last_time[0]
-            if rate[0] > 0 and dt > 0.2:
-                estimated = min(actual_pos[0] + rate[0] * dt, 0.99)
-                if estimated > actual_pos[0]:
-                    progress.update(task, completed=int(estimated * 1000))
+    def on_progress(p: float, info: dict | None = None) -> None:
+        if info is not None:
+            seg_i = info.get("segment_index", 0)
+            total_n = info.get("total_estimated", 1)
+            total_estimated_ref[0] = total_n
+            if not task_initialized[0] and total_n is not None:
+                progress.update(task, total=total_n, completed=seg_i)
+                task_initialized[0] = True
+            else:
+                progress.update(task, completed=seg_i)
+        else:
+            progress.update(task, completed=int(p * 1000))
 
     progress.start()
-    interp_thread = threading.Thread(target=_interpolate, daemon=True)
-    interp_thread.start()
 
     try:
         result = transcribe(audio_path, model=model, model_size=model_size, on_progress=on_progress)
-        done.set()
-        progress.update(task, completed=1000)
+        if task_initialized[0]:
+            progress.update(task, completed=total_estimated_ref[0])
+        else:
+            progress.update(task, completed=1000)
     except Exception:
-        done.set()
         raise
     finally:
-        done.set()
-        interp_thread.join(timeout=1)
         progress.stop()
 
     return result

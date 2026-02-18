@@ -45,28 +45,96 @@ if ! command -v brew &>/dev/null; then
 fi
 ok "Homebrew"
 
-# ── 2. Brew dependencies ────────────────────────────────────────────────────
+# ── 2. Brew dependencies (check only; do not install) ────────────────────────
 
 info "Checking Homebrew dependencies"
 
-install_brew_if_missing() {
-    local pkg="$1"
-    if brew list "$pkg" &>/dev/null; then
-        ok "$pkg already installed"
-        return 0
-    fi
-    warn "$pkg not installed — installing..."
-    brew install "$pkg"
-    ok "$pkg installed"
-}
-
-install_brew_if_missing portaudio
-
 printf '\n'
 read -rp "  Enable speaker/system-audio capture? (requires BlackHole) [y/N] " speaker_yn
+
+# Check required: portaudio. If speaker requested, also check blackhole-2ch and switchaudio-osx.
+MISSING=()
+MISSING_CASK=()
+
+if ! brew list portaudio &>/dev/null; then
+    MISSING+=(portaudio)
+fi
+
 if [[ "$speaker_yn" == [yY] ]]; then
-    install_brew_if_missing blackhole-2ch
-    install_brew_if_missing switchaudio-osx
+    if ! brew list --cask blackhole-2ch &>/dev/null; then
+        MISSING_CASK+=(blackhole-2ch)
+    fi
+    if ! brew list switchaudio-osx &>/dev/null; then
+        MISSING+=(switchaudio-osx)
+    fi
+fi
+
+# If any dependency is missing, print instructions and exit (do not run brew install).
+if [[ ${#MISSING[@]} -gt 0 ]] || [[ ${#MISSING_CASK[@]} -gt 0 ]]; then
+    echo ""
+    fail "Some dependencies are missing."
+    echo ""
+    for pkg in "${MISSING[@]}"; do
+        case "$pkg" in
+            portaudio)
+                echo "  You need portaudio for audio recording in liscribe."
+                echo "  More info: https://formulae.brew.sh/formula/portaudio"
+                ;;
+            switchaudio-osx)
+                echo "  You need switchaudio-osx to switch system output when using speaker capture (-s)."
+                echo "  More info: https://formulae.brew.sh/formula/switchaudio-osx"
+                ;;
+            *)
+                echo "  You need $pkg for liscribe."
+                echo "  More info: https://formulae.brew.sh/formula/$pkg"
+                ;;
+        esac
+        echo ""
+    done
+    for pkg in "${MISSING_CASK[@]}"; do
+        case "$pkg" in
+            blackhole-2ch)
+                echo "  You need blackhole-2ch for system/speaker audio capture (-s) in liscribe."
+                echo "  More info: https://existential.audio/blackhole/ or https://formulae.brew.sh/cask/blackhole-2ch"
+                ;;
+            *)
+                echo "  You need $pkg for liscribe."
+                echo "  More info: https://formulae.brew.sh/cask/$pkg"
+                ;;
+        esac
+        echo ""
+    done
+    echo "  Install the missing items above (e.g. with Homebrew), then run ./install.sh again."
+    echo ""
+    read -rp "  Do you want to see install commands? [y/N] " show_cmds
+    if [[ "$show_cmds" == [yY] ]]; then
+        echo ""
+        for pkg in "${MISSING[@]}"; do
+            echo "  brew install $pkg"
+        done
+        for pkg in "${MISSING_CASK[@]}"; do
+            echo "  brew install --cask $pkg"
+        done
+        echo ""
+        if [[ ${#MISSING_CASK[@]} -gt 0 ]]; then
+            echo "  Note: Cask installs (e.g. BlackHole) may request your password and a reboot."
+            echo ""
+        fi
+    fi
+    exit 1
+fi
+
+# All required deps present — report and continue (no brew install from this script).
+if brew list portaudio &>/dev/null; then
+    ok "portaudio already installed"
+fi
+if [[ "$speaker_yn" == [yY] ]]; then
+    if brew list --cask blackhole-2ch &>/dev/null; then
+        ok "blackhole-2ch already installed"
+    fi
+    if brew list switchaudio-osx &>/dev/null; then
+        ok "switchaudio-osx already installed"
+    fi
 fi
 
 # ── 3. Python venv & package ────────────────────────────────────────────────
