@@ -177,6 +177,28 @@ class RecordingSession:
             logger.info("Restored audio output to: %s", self._original_output)
             self._original_output = None
 
+    def enable_speaker_capture(self) -> str | None:
+        """Enable speaker capture mid-recording. Returns None on success, error message on failure."""
+        if self.speaker:
+            return None
+        self.blackhole_idx = _find_blackhole_device(self.blackhole_name)
+        if self.blackhole_idx is None:
+            return f"BlackHole '{self.blackhole_name}' not found. Run setup for instructions."
+        self._original_output = get_current_output_device()
+        if not set_output_device(self.speaker_device_name):
+            return (
+                f"Could not switch to '{self.speaker_device_name}'. "
+                "Create a Multi-Output Device in Audio MIDI Setup (see setup)."
+            )
+        atexit.register(self._restore_audio_output)
+        try:
+            self._speaker_stream = self._open_speaker_stream(self.blackhole_idx)
+        except sd.PortAudioError as exc:
+            self._restore_audio_output()
+            return f"Error starting speaker capture: {exc}"
+        self.speaker = True
+        return None
+
     def start(self) -> str | None:
         """Run the recording session. Returns path to saved WAV or None on cancel."""
         # Resolve mic

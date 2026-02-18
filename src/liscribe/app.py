@@ -54,17 +54,24 @@ from liscribe.waveform import WaveformMonitor
 
 
 class LiscribeCommandsProvider(Provider):
-    """Command palette provider for liscribe actions (e.g. Change microphone)."""
+    """Command palette provider for liscribe actions (e.g. Change microphone, Add speaker capture)."""
 
     async def search(self, query: str):
         matcher = self.matcher(query)
+        app = self.app
         if (score := matcher.match("Change microphone")) > 0:
-            app = self.app
             yield Hit(
                 score,
                 matcher.highlight("Change microphone"),
                 lambda app=app: app.action_change_mic(),
                 help="Open mic selector",
+            )
+        if not getattr(app, "speaker", True) and (score := matcher.match("Add speaker capture")) > 0:
+            yield Hit(
+                score,
+                matcher.highlight("Add speaker capture"),
+                lambda app=app: app.action_add_speaker_capture(),
+                help="Start capturing system audio (BlackHole)",
             )
 
     async def discover(self):
@@ -74,6 +81,12 @@ class LiscribeCommandsProvider(Provider):
             lambda app=app: app.action_change_mic(),
             help="Open mic selector",
         )
+        if not getattr(app, "speaker", True):
+            yield DiscoveryHit(
+                "Add speaker capture",
+                lambda app=app: app.action_add_speaker_capture(),
+                help="Start capturing system audio (BlackHole)",
+            )
 
 
 class MicSelectScreen(ModalScreen[int | None]):
@@ -355,6 +368,25 @@ class RecordingApp(App[str | None]):
             path = self.session._stop_and_save()
             self._saved_path = path
         self.exit(self._saved_path)
+
+    def action_add_speaker_capture(self) -> None:
+        """Enable speaker capture mid-recording (from command palette)."""
+        if not self.session or self.speaker:
+            return
+        original_speaker_cb = self.session._speaker_callback
+
+        def patched_speaker_cb(indata: np.ndarray, frames: int, time_info: Any, status: sd.CallbackFlags) -> None:
+            original_speaker_cb(indata, frames, time_info, status)
+            self.waveform_speaker.push(indata)
+
+        self.session._speaker_callback = patched_speaker_cb
+        err = self.session.enable_speaker_capture()
+        if err:
+            self.notify(err, severity="error")
+            return
+        self.speaker = True
+        self.mount(Static("", id="waveform-speaker"), before=self.query_one("#notes-container"))
+        self.notify("Speaker capture added")
 
     def action_change_mic(self) -> None:
         """Open mic selector (used by command palette)."""
