@@ -21,6 +21,7 @@ dependencies = [
     "pyperclip>=1.9.0",
     "PyYAML>=6.0.2",
     "requests>=2.32.0",
+    "rich>=13.0",
 ]
 
 [project.optional-dependencies]
@@ -30,7 +31,7 @@ dev = [
 ]
 
 [project.scripts]
-rec = "liscribe.cli:main"
+rec = "liscribe.cli:main_wrapper"
 
 [tool.setuptools.packages.find]
 where = ["src"]

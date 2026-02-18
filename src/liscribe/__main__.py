@@ -1,5 +1,5 @@
 """Allow running as: python -m liscribe"""
 
-from liscribe.cli import main
+from liscribe.cli import main_wrapper
 
-main()
+main_wrapper()

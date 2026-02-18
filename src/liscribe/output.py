@@ -13,7 +13,6 @@ from pathlib import Path
 
 import yaml
 
-from liscribe.config import load_config
 from liscribe.notes import Note
 from liscribe.transcriber import TranscriptionResult
 
@@ -70,14 +69,19 @@ def _build_annotated_transcript(
 
 def build_markdown(
     result: TranscriptionResult,
-    wav_path: str | Path,
+    audio_path: str | Path,
     notes: list[Note] | None = None,
     mic_name: str = "unknown",
     speaker_mode: bool = False,
+    model_name: str | None = None,
 ) -> str:
     """Build a Markdown string with YAML front matter for a transcription."""
-    wav_path = Path(wav_path)
+    audio_path = Path(audio_path)
     now = datetime.now()
+
+    if model_name is None:
+        from liscribe.config import load_config
+        model_name = load_config().get("whisper_model", "base")
 
     front_matter = {
         "title": f"Transcript {now.strftime('%Y-%m-%d %H:%M')}",
@@ -87,8 +91,8 @@ def build_markdown(
         "language": result.language,
         "mic": mic_name,
         "speaker_capture": speaker_mode,
-        "source_audio": wav_path.name,
-        "model": load_config().get("whisper_model", "base"),
+        "source_audio": audio_path.name,
+        "model": model_name,
     }
 
     lines = ["---"]
@@ -116,24 +120,36 @@ def build_markdown(
 
 def save_transcript(
     result: TranscriptionResult,
-    wav_path: str | Path,
+    audio_path: str | Path,
     notes: list[Note] | None = None,
     mic_name: str = "unknown",
     speaker_mode: bool = False,
+    model_name: str | None = None,
+    include_model_in_filename: bool = False,
+    output_dir: str | Path | None = None,
 ) -> Path:
-    """Write transcript to a .md file in the same folder as the WAV.
+    """Write transcript to a .md file.
 
-    Returns the path to the saved MD file.
+    When *include_model_in_filename* is True the model name is appended to the
+    stem (e.g. ``recording_medium.md``).  *output_dir* overrides the default
+    behaviour of saving next to the audio file.
     """
-    wav_path = Path(wav_path)
-    md_path = wav_path.with_suffix(".md")
+    audio_path = Path(audio_path)
+
+    stem = audio_path.stem
+    suffix = f"_{model_name}" if include_model_in_filename and model_name else ""
+    filename = f"{stem}{suffix}.md"
+
+    parent = Path(output_dir) if output_dir else audio_path.parent
+    md_path = parent / filename
 
     content = build_markdown(
         result=result,
-        wav_path=wav_path,
+        audio_path=audio_path,
         notes=notes,
         mic_name=mic_name,
         speaker_mode=speaker_mode,
+        model_name=model_name,
     )
 
     md_path.write_text(content, encoding="utf-8")
@@ -153,26 +169,30 @@ def copy_to_clipboard(text: str) -> bool:
         return False
 
 
-def cleanup_audio(wav_path: str | Path, md_path: str | Path) -> bool:
-    """Delete the WAV file ONLY if the MD transcript exists and is non-empty.
+def cleanup_audio(
+    audio_path: str | Path,
+    md_paths: str | Path | list[str | Path],
+) -> bool:
+    """Delete audio ONLY if ALL transcript files exist and are non-empty."""
+    audio_path = Path(audio_path)
 
-    This is the critical safety check: never delete audio without a saved transcript.
-    """
-    wav_path = Path(wav_path)
-    md_path = Path(md_path)
+    if isinstance(md_paths, (str, Path)):
+        md_paths = [Path(md_paths)]
+    else:
+        md_paths = [Path(p) for p in md_paths]
 
-    if not md_path.exists():
-        logger.error("Refusing to delete audio: transcript not found at %s", md_path)
-        return False
-
-    if md_path.stat().st_size == 0:
-        logger.error("Refusing to delete audio: transcript is empty at %s", md_path)
-        return False
+    for md_path in md_paths:
+        if not md_path.exists():
+            logger.error("Refusing to delete audio: transcript not found at %s", md_path)
+            return False
+        if md_path.stat().st_size == 0:
+            logger.error("Refusing to delete audio: transcript is empty at %s", md_path)
+            return False
 
     try:
-        wav_path.unlink()
-        logger.info("Audio file removed: %s", wav_path)
+        audio_path.unlink()
+        logger.info("Audio file removed: %s", audio_path)
         return True
     except OSError as exc:
-        logger.error("Could not delete audio file %s: %s", wav_path, exc)
+        logger.error("Could not delete audio file %s: %s", audio_path, exc)
         return False

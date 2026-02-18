@@ -1,21 +1,354 @@
-"""CLI entry point — rec command with -f, -s, --mic flags and subcommands."""
+"""CLI entry point — rec command with rich output, multi-model support, and transcribe subcommand."""
 
 from __future__ import annotations
 
 import sys
+import threading
+import time
+import wave
+from pathlib import Path
 
 import click
+from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    Progress,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 from liscribe import __version__
 from liscribe.config import init_config_if_missing, load_config, CONFIG_PATH
 from liscribe.logging_setup import setup_logging
 
+console = Console(highlight=False)
+
+MODEL_QUALITY_ORDER = ["tiny", "base", "small", "medium", "large"]
+
+# Map multi-character short options to long options
+_SHORT_MODEL_OPTS = {
+    "-xxs": "--tiny",
+    "-xs": "--base",
+    "-sm": "--small",
+    "-md": "--medium",
+    "-lg": "--large",
+}
+
+
+def _preprocess_model_args():
+    """Convert multi-character short options like -xxs to --tiny before Click parses."""
+    if len(sys.argv) < 2:
+        return
+    # #region agent log
+    DEBUG_LOG = Path(__file__).parent.parent.parent / ".cursor" / "debug-3b00e9.log"
+    original_argv = sys.argv.copy()
+    # #endregion
+    new_argv = [sys.argv[0]]
+    i = 1
+    while i < len(sys.argv):
+        arg = sys.argv[i]
+        if arg in _SHORT_MODEL_OPTS:
+            # Replace -xxs with --tiny, etc.
+            new_argv.append(_SHORT_MODEL_OPTS[arg])
+            # #region agent log
+            try:
+                import json
+                log_entry = {
+                    "sessionId": "3b00e9",
+                    "location": "cli.py:_preprocess_model_args",
+                    "message": "converted_short_opt",
+                    "data": {"from": arg, "to": _SHORT_MODEL_OPTS[arg]},
+                    "timestamp": int(time.time() * 1000),
+                }
+                DEBUG_LOG.parent.mkdir(parents=True, exist_ok=True)
+                with DEBUG_LOG.open("a", encoding="utf-8") as f:
+                    f.write(json.dumps(log_entry) + "\n")
+            except Exception:
+                pass
+            # #endregion
+        else:
+            new_argv.append(arg)
+        i += 1
+    sys.argv = new_argv
+    # #region agent log
+    try:
+        import json
+        log_entry = {
+            "sessionId": "3b00e9",
+            "location": "cli.py:_preprocess_model_args",
+            "message": "argv_preprocessed",
+            "data": {"original": original_argv, "new": new_argv},
+            "timestamp": int(time.time() * 1000),
+        }
+        DEBUG_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with DEBUG_LOG.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry) + "\n")
+    except Exception:
+        pass
+    # #endregion
+
+WHISPER_MODELS = [
+    ("tiny",   "~75 MB,  fastest, least accurate"),
+    ("base",   "~150 MB, good balance for short recordings"),
+    ("small",  "~500 MB, higher accuracy"),
+    ("medium", "~1.5 GB, near-best accuracy, slower"),
+    ("large",  "~3 GB,   best accuracy, slowest"),
+]
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+def _model_options(func):
+    """Decorator adding whisper model selection flags to a Click command."""
+    options = [
+        click.option("--tiny", "--xxs", "model_tiny", is_flag=True, default=False,
+                      help="Use tiny model (~75 MB, fastest)"),
+        click.option("--base", "--xs", "model_base", is_flag=True, default=False,
+                      help="Use base model (~150 MB)"),
+        click.option("--small", "--sm", "model_small", is_flag=True, default=False,
+                      help="Use small model (~500 MB)"),
+        click.option("--medium", "--md", "model_medium", is_flag=True, default=False,
+                      help="Use medium model (~1.5 GB)"),
+        click.option("--large", "--lg", "model_large", is_flag=True, default=False,
+                      help="Use large model (~3 GB, best accuracy)"),
+    ]
+    for option in reversed(options):
+        func = option(func)
+    return func
+
+
+def _collect_models(model_tiny, model_base, model_small, model_medium, model_large) -> list[str]:
+    """Gather selected model flags into quality-ordered list."""
+    selected = []
+    if model_tiny:
+        selected.append("tiny")
+    if model_base:
+        selected.append("base")
+    if model_small:
+        selected.append("small")
+    if model_medium:
+        selected.append("medium")
+    if model_large:
+        selected.append("large")
+    return selected
+
+
+def _resolve_folder(folder: str | None, here: bool) -> str:
+    """Determine save folder from flags and config.
+
+    Priority: -f > --here > config save_folder > ~/transcripts
+    """
+    if folder:
+        return folder
+    if here:
+        return str(Path.cwd() / "docs" / "transcripts")
+    cfg = load_config()
+    return cfg.get("save_folder", "~/transcripts")
+
+
+def _audio_description(audio_path: Path) -> str:
+    """Brief human-readable description of an audio file (duration or size)."""
+    try:
+        if audio_path.suffix.lower() == ".wav":
+            with wave.open(str(audio_path), "rb") as wf:
+                duration = wf.getnframes() / wf.getframerate()
+            if duration >= 60:
+                mins, secs = divmod(int(duration), 60)
+                return f"{mins}m {secs}s audio"
+            return f"{int(duration)}s audio"
+    except Exception:
+        pass
+    try:
+        size = audio_path.stat().st_size
+        if size > 1_000_000:
+            return f"{size / 1_000_000:.1f} MB"
+        return f"{size / 1_000:.0f} KB"
+    except Exception:
+        return audio_path.suffix.lstrip(".").upper()
+
+
+def _transcribe_with_progress(audio_path: str, model_size: str, label: str):
+    """Load model (spinner), then transcribe with a smooth rich progress bar."""
+    from liscribe.transcriber import load_model, transcribe
+
+    with console.status(f"  Loading [bold]{model_size}[/bold] model..."):
+        model = load_model(model_size)
+
+    progress = Progress(
+        TextColumn(label),
+        BarColumn(bar_width=26),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        console=console,
+        transient=False,
+    )
+
+    task = progress.add_task("", total=1000)
+    actual_pos = [0.0]
+    last_time = [time.monotonic()]
+    rate = [0.0]
+    done = threading.Event()
+
+    def on_progress(p: float) -> None:
+        now = time.monotonic()
+        dt = now - last_time[0]
+        if dt > 0 and p > actual_pos[0]:
+            rate[0] = (p - actual_pos[0]) / dt
+        actual_pos[0] = p
+        last_time[0] = now
+        progress.update(task, completed=int(p * 1000))
+
+    def _interpolate():
+        """Smoothly advance the bar between segment callbacks."""
+        while not done.is_set():
+            time.sleep(0.15)
+            if done.is_set():
+                break
+            now = time.monotonic()
+            dt = now - last_time[0]
+            if rate[0] > 0 and dt > 0.2:
+                estimated = min(actual_pos[0] + rate[0] * dt, 0.99)
+                if estimated > actual_pos[0]:
+                    progress.update(task, completed=int(estimated * 1000))
+
+    progress.start()
+    interp_thread = threading.Thread(target=_interpolate, daemon=True)
+    interp_thread.start()
+
+    try:
+        result = transcribe(audio_path, model=model, model_size=model_size, on_progress=on_progress)
+        done.set()
+        progress.update(task, completed=1000)
+    except Exception:
+        done.set()
+        raise
+    finally:
+        done.set()
+        interp_thread.join(timeout=1)
+        progress.stop()
+
+    return result
+
+
+def _run_transcription_pipeline(
+    audio_path: str | Path,
+    models: list[str],
+    notes=None,
+    mic_name: str = "system default",
+    speaker_mode: bool = False,
+    output_dir: str | Path | None = None,
+) -> None:
+    """Transcribe with one or more models, save outputs, clipboard, cleanup."""
+    from liscribe.transcriber import is_model_available
+    from liscribe.output import save_transcript, copy_to_clipboard, cleanup_audio
+
+    audio_path = Path(audio_path)
+    multi_model = len(models) > 1
+
+    available = [m for m in models if is_model_available(m)]
+    skipped = [m for m in models if m not in available]
+
+    for m in skipped:
+        console.print(
+            f"  [dim]\\[skip][/dim]  [bold]{m:<8}[/bold] "
+            f"not installed [dim](run 'rec setup' to download)[/dim]"
+        )
+    if skipped:
+        console.print("  [dim]Tip: run [bold]scrib setup[/bold] to install more models.[/dim]")
+
+    if not available:
+        console.print()
+        console.print("  [red bold]Error:[/red bold] None of the requested models are installed.")
+        console.print("  Run [bold]'rec setup'[/bold] to download models.")
+        console.print(f"  Audio file kept at: [dim]{audio_path}[/dim]")
+        return
+
+    n = len(available)
+    desc = _audio_description(audio_path)
+    if multi_model or skipped:
+        console.print(f"  [bold]Transcribing[/bold]  {n} model{'s' if n != 1 else ''} | {desc}")
+    else:
+        console.print(f"  [bold]Transcribing[/bold]  {available[0]} model | {desc}")
+
+    results: list[tuple[str, object, Path]] = []
+
+    for i, model_size in enumerate(available):
+        if n > 1:
+            label = f"  \\[{i+1}/{n}] [bold]{model_size:<8}[/bold]"
+        else:
+            label = f"  [bold]{model_size:<8}[/bold]        "
+
+        try:
+            result = _transcribe_with_progress(str(audio_path), model_size, label)
+        except Exception as exc:
+            console.print(f"  [red]\\[fail][/red] [bold]{model_size}[/bold]: {exc}")
+            continue
+
+        md_path = save_transcript(
+            result=result,
+            audio_path=audio_path,
+            notes=notes,
+            mic_name=mic_name,
+            speaker_mode=speaker_mode,
+            model_name=model_size,
+            include_model_in_filename=multi_model,
+            output_dir=output_dir,
+        )
+        results.append((model_size, result, md_path))
+
+    if not results:
+        console.print()
+        console.print("  [red bold]All transcriptions failed.[/red bold]")
+        console.print(f"  Audio file kept at: [dim]{audio_path}[/dim]")
+        return
+
+    # -- Saved files --
+    console.print()
+    for i, (_, _, p) in enumerate(results):
+        prefix = "  [green]Saved[/green]         " if i == 0 else "                  "
+        console.print(f"{prefix}[dim]{Path(p).name}[/dim]")
+
+    # -- Clipboard: pick highest-quality model --
+    cfg = load_config()
+    if cfg.get("auto_clipboard", True):
+        def _quality(name: str) -> int:
+            try:
+                return MODEL_QUALITY_ORDER.index(name)
+            except ValueError:
+                return -1
+
+        best_model, best_result, _ = max(results, key=lambda x: _quality(x[0]))
+        if copy_to_clipboard(best_result.text):
+            quality_note = f" [dim]({best_model})[/dim]" if multi_model else ""
+            console.print(f"  [green]Clipboard[/green]     copied{quality_note}")
+
+    # -- Cleanup: only after ALL transcripts confirmed on disk --
+    all_md_paths = [p for _, _, p in results]
+    if cleanup_audio(audio_path, all_md_paths):
+        console.print(f"  [green]Cleanup[/green]       audio removed")
+    else:
+        console.print(f"  [dim]Audio kept at: {audio_path}[/dim]")
+
+
+# ---------------------------------------------------------------------------
+# Main command group
+# ---------------------------------------------------------------------------
 
 @click.group(invoke_without_command=True)
 @click.option(
     "-f", "--folder",
     type=click.Path(),
     help="Folder to save recordings and transcripts.",
+)
+@click.option(
+    "-h", "--here",
+    "here",
+    is_flag=True,
+    default=False,
+    help="Save to ./docs/transcripts in current directory.",
 )
 @click.option(
     "-s", "--speaker",
@@ -29,101 +362,130 @@ from liscribe.logging_setup import setup_logging
     default=None,
     help="Input device name or index to use for recording.",
 )
-@click.option(
-    "--debug",
-    is_flag=True,
-    default=False,
-    help="Enable debug logging.",
-)
+@click.option("--debug", is_flag=True, default=False, help="Enable debug logging.")
+@_model_options
 @click.version_option(__version__, prog_name="liscribe")
 @click.pass_context
-def main(ctx: click.Context, folder: str | None, speaker: bool, mic: str | None, debug: bool) -> None:
+def main(
+    ctx: click.Context,
+    folder: str | None,
+    here: bool,
+    speaker: bool,
+    mic: str | None,
+    debug: bool,
+    model_tiny: bool,
+    model_base: bool,
+    model_small: bool,
+    model_medium: bool,
+    model_large: bool,
+) -> None:
     """Liscribe — 100% offline terminal recorder and transcriber."""
     setup_logging(debug=debug)
     ctx.ensure_object(dict)
     ctx.obj["folder"] = folder
+    ctx.obj["here"] = here
     ctx.obj["speaker"] = speaker
     ctx.obj["mic"] = mic
+    ctx.obj["models_selected"] = _collect_models(
+        model_tiny, model_base, model_small, model_medium, model_large,
+    )
 
     if ctx.invoked_subcommand is not None:
         return
 
-    if folder is None:
-        cfg = load_config()
-        folder = cfg.get("save_folder")
-        if folder is None:
-            click.echo("Error: --folder / -f is required (or set save_folder in config).", err=True)
-            click.echo(f"Config: {CONFIG_PATH}", err=True)
-            sys.exit(1)
-        ctx.obj["folder"] = folder
+    # -- Resolve save folder --
+    folder = _resolve_folder(folder, here)
+    ctx.obj["folder"] = folder
+    resolved = Path(folder).expanduser().resolve()
+    resolved.mkdir(parents=True, exist_ok=True)
+    console.print(f"  [dim]Saving to {resolved}[/dim]")
 
-    # Start recording via TUI
+    # -- Record via TUI --
     from liscribe.app import RecordingApp
+
     app = RecordingApp(folder=folder, speaker=speaker, mic=mic, prog_name=ctx.info_name)
     wav_path = app.run()
 
     if not wav_path:
         exit_msg = getattr(app, "_exit_error_message", None)
         if exit_msg:
-            click.echo(exit_msg, err=True)
+            console.print(f"  [red]{exit_msg}[/red]")
         else:
-            click.echo("Recording cancelled.")
+            console.print("  Recording cancelled.")
         return
 
-    click.echo(f"Audio saved: {wav_path}")
+    console.print(f"  [green]Audio saved[/green]   {Path(wav_path).name}")
     timestamped_notes = app.notes
 
-    # Transcribe
-    click.echo("Transcribing...")
-    from liscribe.transcriber import transcribe
-    from liscribe.output import save_transcript, copy_to_clipboard, cleanup_audio
+    # -- Determine models --
+    models = ctx.obj["models_selected"]
+    if not models:
+        cfg = load_config()
+        models = [cfg.get("whisper_model", "base")]
 
-    def show_progress(progress: float) -> None:
-        bar_len = 30
-        filled = int(bar_len * progress)
-        bar = "█" * filled + "░" * (bar_len - filled)
-        click.echo(f"\r  [{bar}] {progress*100:.0f}%", nl=False)
-
-    try:
-        result = transcribe(wav_path, on_progress=show_progress)
-        click.echo()
-    except Exception as exc:
-        click.echo(f"\nTranscription failed: {exc}", err=True)
-        click.echo(f"Audio file kept at: {wav_path}")
-        return
-
-    # Save transcript
-    mic_name = mic or "system default"
-    md_path = save_transcript(
-        result=result,
-        wav_path=wav_path,
+    console.print()
+    _run_transcription_pipeline(
+        audio_path=wav_path,
+        models=models,
         notes=timestamped_notes if timestamped_notes else None,
-        mic_name=mic_name,
+        mic_name=mic or "system default",
         speaker_mode=speaker,
     )
-    click.echo(f"Transcript saved: {md_path}")
-
-    # Clipboard
-    cfg = load_config()
-    if cfg.get("auto_clipboard", True):
-        if copy_to_clipboard(result.text):
-            click.echo("Transcript copied to clipboard.")
-
-    # Remove audio only after transcript is confirmed saved
-    if cleanup_audio(wav_path, md_path):
-        click.echo("Audio file removed (transcript saved).")
-    else:
-        click.echo(f"Audio file kept at: {wav_path}")
 
 
-WHISPER_MODELS = [
-    ("tiny",   "~75 MB,  fastest, least accurate"),
-    ("base",   "~150 MB, good balance for short recordings"),
-    ("small",  "~500 MB, higher accuracy"),
-    ("medium", "~1.5 GB, near-best accuracy, slower"),
-    ("large",  "~3 GB,   best accuracy, slowest"),
-]
+# ---------------------------------------------------------------------------
+# transcribe subcommand  (alias: t)
+# ---------------------------------------------------------------------------
 
+@main.command(name="transcribe")
+@click.argument("audio_files", nargs=-1, type=click.Path(exists=True), required=True)
+@_model_options
+@click.pass_context
+def transcribe_cmd(
+    ctx: click.Context,
+    audio_files: tuple[str, ...],
+    model_tiny: bool,
+    model_base: bool,
+    model_small: bool,
+    model_medium: bool,
+    model_large: bool,
+) -> None:
+    """Transcribe existing audio files (WAV, MP3, M4A, OGG, etc.)."""
+    models = _collect_models(model_tiny, model_base, model_small, model_medium, model_large)
+    if not models:
+        parent_models = ctx.obj.get("models_selected", [])
+        if parent_models:
+            models = parent_models
+    if not models:
+        cfg = load_config()
+        models = [cfg.get("whisper_model", "base")]
+
+    folder = ctx.obj.get("folder")
+    here = ctx.obj.get("here", False)
+
+    output_dir = None
+    if folder or here:
+        output_dir = str(Path(_resolve_folder(folder, here)).expanduser().resolve())
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        console.print(f"  [dim]Saving transcripts to {output_dir}[/dim]")
+
+    for audio_file in audio_files:
+        audio_path = Path(audio_file).resolve()
+        console.print(f"\n  [bold]{audio_path.name}[/bold]")
+
+        _run_transcription_pipeline(
+            audio_path=str(audio_path),
+            models=models,
+            output_dir=output_dir,
+        )
+
+
+main.add_command(transcribe_cmd, "t")
+
+
+# ---------------------------------------------------------------------------
+# setup subcommand
+# ---------------------------------------------------------------------------
 
 @main.command()
 def setup() -> None:
@@ -133,68 +495,114 @@ def setup() -> None:
 
     created = init_config_if_missing()
     if created:
-        click.echo(f"Created default config at {CONFIG_PATH}")
+        console.print(f"  Created default config at [dim]{CONFIG_PATH}[/dim]")
     else:
-        click.echo(f"Config already exists at {CONFIG_PATH}")
+        console.print(f"  Config already exists at [dim]{CONFIG_PATH}[/dim]")
 
-    click.echo()
+    console.print()
     results = run_all_checks(include_speaker=True)
     all_ok = True
     for name, ok, msg in results:
-        icon = "OK" if ok else "MISSING"
-        click.echo(f"  [{icon}] {name}: {msg}")
+        icon = "[green]OK[/green]" if ok else "[red]MISSING[/red]"
+        console.print(f"  [{icon}] {name}: {msg}")
         if not ok:
             all_ok = False
 
-    click.echo()
+    console.print()
     if all_ok:
-        click.echo("All checks passed.")
+        console.print("  [green]All checks passed.[/green]")
     else:
-        click.echo("Some checks failed. See above for install instructions.")
+        console.print("  [yellow]Some checks failed.[/yellow] See above for install instructions.")
 
-    # --- Whisper model selection ---
+    # --- Whisper model selection (multi-select) ---
+    from liscribe.transcriber import is_model_available, load_model
+
     cfg = load_config()
     current_model = cfg.get("whisper_model", "base")
+    model_names = [name for name, _ in WHISPER_MODELS]
 
-    click.echo()
-    click.echo("Available whisper models:")
-    model_names = []
+    console.print()
+    console.print("  Available whisper models:")
     for i, (name, desc) in enumerate(WHISPER_MODELS, 1):
-        marker = " (current)" if name == current_model else ""
-        click.echo(f"  {i}. {name:<8} {desc}{marker}")
-        model_names.append(name)
+        installed = " [green]✓[/green]" if is_model_available(name) else ""
+        current = " [dim](default)[/dim]" if name == current_model else ""
+        console.print(f"    {i}. [bold]{name:<8}[/bold] {desc}{installed}{current}")
 
-    model_choice = click.prompt(
-        "Choose a model",
+    console.print()
+    console.print("  [dim]Enter numbers to download (e.g. 2,4,5 or 2-5 or all)[/dim]")
+    raw = click.prompt(
+        "  Models to download",
+        default="2",
+        show_default=True,
+    ).strip().lower()
+
+    # Parse "1,3,5", "1 3 5", "2-4", "all"
+    indices: set[int] = set()
+    if raw == "all":
+        indices = set(range(1, len(WHISPER_MODELS) + 1))
+    else:
+        for part in raw.replace(",", " ").split():
+            if "-" in part:
+                a, b = part.split("-", 1)
+                try:
+                    lo, hi = int(a.strip()), int(b.strip())
+                    indices.update(range(lo, hi + 1))
+                except ValueError:
+                    pass
+            else:
+                try:
+                    indices.add(int(part))
+                except ValueError:
+                    pass
+
+    to_download = [model_names[i - 1] for i in sorted(indices) if 1 <= i <= len(WHISPER_MODELS)]
+    if not to_download:
+        to_download = [current_model] if current_model in model_names else [model_names[1]]  # base
+
+    # Default model for single-model use
+    default_idx = model_names.index(current_model) + 1 if current_model in model_names else 2
+    default_choice = click.prompt(
+        "  Default model for recordings (number)",
         type=click.IntRange(1, len(WHISPER_MODELS)),
-        default=model_names.index(current_model) + 1 if current_model in model_names else 2,
+        default=default_idx,
     )
-    model_size = model_names[model_choice - 1]
+    default_model = model_names[default_choice - 1]
 
     # --- Language selection ---
     current_lang = cfg.get("language", "en")
-    click.echo()
+    console.print()
     lang = click.prompt(
-        "Transcription language (ISO 639-1 code, e.g. en, fr, de, or 'auto')",
+        "  Transcription language (ISO 639-1 code, e.g. en, fr, de, or 'auto')",
         default=current_lang,
     ).strip().lower()
 
-    # Save choices
-    cfg["whisper_model"] = model_size
+    cfg["whisper_model"] = default_model
     cfg["language"] = lang
     save_config(cfg)
-    click.echo(f"\nConfig saved: model={model_size}, language={lang}")
+    console.print(f"\n  Config saved: default=[bold]{default_model}[/bold], language=[bold]{lang}[/bold]")
 
-    # Offer to download model
-    if click.confirm(f"Download/verify the '{model_size}' model now?", default=True):
-        click.echo(f"Loading model '{model_size}' (downloads on first use)...")
-        from liscribe.transcriber import load_model
-        try:
-            load_model(model_size)
-            click.echo("Model ready.")
-        except Exception as exc:
-            click.echo(f"Error loading model: {exc}", err=True)
+    if not to_download:
+        return
 
+    if click.confirm(
+        f"  Download {len(to_download)} model(s) now? ({', '.join(to_download)})",
+        default=True,
+    ):
+        for model_size in to_download:
+            if is_model_available(model_size):
+                console.print(f"  [dim]Skipping [bold]{model_size}[/bold] (already installed)[/dim]")
+                continue
+            with console.status(f"  Downloading [bold]{model_size}[/bold]..."):
+                try:
+                    load_model(model_size)
+                    console.print(f"  [green]Ready:[/green] {model_size}")
+                except Exception as exc:
+                    console.print(f"  [red]Error [bold]{model_size}[/bold]:[/red] {exc}")
+
+
+# ---------------------------------------------------------------------------
+# config subcommand
+# ---------------------------------------------------------------------------
 
 @main.command()
 @click.option("--show", is_flag=True, help="Show current config values.")
@@ -204,11 +612,17 @@ def config(ctx: click.Context, show: bool) -> None:
     if show:
         cfg = load_config()
         for key, val in cfg.items():
-            click.echo(f"  {key}: {val}")
+            console.print(f"  [bold]{key}:[/bold] {val}")
     else:
-        click.echo(f"Config file: {CONFIG_PATH}")
-        click.echo(f"Edit it directly, or use '{ctx.info_name} config --show' to view current values.")
+        console.print(f"  Config file: [dim]{CONFIG_PATH}[/dim]")
+        console.print(
+            f"  Edit it directly, or use [bold]'{ctx.info_name} config --show'[/bold] to view current values."
+        )
 
+
+# ---------------------------------------------------------------------------
+# devices subcommand
+# ---------------------------------------------------------------------------
 
 @main.command()
 @click.pass_context
@@ -217,16 +631,27 @@ def devices(ctx: click.Context) -> None:
     try:
         import sounddevice as sd
     except OSError:
-        click.echo(f"Error: PortAudio not found. Run '{ctx.info_name} setup' for instructions.", err=True)
+        console.print(
+            f"  [red]Error:[/red] PortAudio not found. "
+            f"Run [bold]'{ctx.info_name} setup'[/bold] for instructions."
+        )
         sys.exit(1)
 
     devs = sd.query_devices()
-    click.echo("Available input devices:\n")
+    console.print("  Available input devices:\n")
     for i, d in enumerate(devs):
         if d["max_input_channels"] > 0:
-            default_marker = " (default)" if i == sd.default.device[0] else ""
-            click.echo(
-                f"  [{i}] {d['name']}"
+            default_marker = " [dim](default)[/dim]" if i == sd.default.device[0] else ""
+            console.print(
+                f"    [{i}] [bold]{d['name']}[/bold]"
                 f"  ({d['max_input_channels']}ch, {int(d['default_samplerate'])}Hz)"
                 f"{default_marker}"
             )
+
+
+# Wrapper for entry point scripts (converts -xxs to --tiny before Click parses)
+def main_wrapper():
+    """Entry point wrapper that preprocesses arguments before calling main()."""
+    _preprocess_model_args()
+    # Click will parse the modified sys.argv when main() is invoked
+    main()

@@ -102,22 +102,146 @@ WHISPER_DESCS=(
 
 echo ""
 echo "  Available whisper models:"
+# #region agent log
+DEBUG_LOG="$SCRIPT_DIR/.cursor/debug-3b00e9.log"
+# #endregion
 for i in "${!WHISPER_MODELS[@]}"; do
-    printf '    %d. %-8s %s\n' $((i+1)) "${WHISPER_MODELS[$i]}" "${WHISPER_DESCS[$i]}"
+    model_name="${WHISPER_MODELS[$i]}"
+    installed_marker=""
+    if "$VENV_DIR/bin/python" -c "from liscribe.transcriber import is_model_available; exit(0 if is_model_available('$model_name') else 1)" 2>/dev/null; then
+        installed_marker=" ✓"
+    fi
+    printf '    %d. %-8s %s%s\n' $((i+1)) "$model_name" "${WHISPER_DESCS[$i]}" "$installed_marker"
 done
 echo ""
+echo "  Enter numbers to download (e.g. 2,4,5 or 2-5 or all)"
 
 default_model=2
+sorted_indices=()
 while true; do
-    read -rp "  Choose a model [1-${#WHISPER_MODELS[@]}] (default: $default_model): " model_choice
+    read -rp "  Models to download (default: $default_model): " model_choice
     model_choice="${model_choice:-$default_model}"
-    if [[ "$model_choice" =~ ^[1-5]$ ]]; then
+    # #region agent log
+    echo "{\"sessionId\":\"3b00e9\",\"location\":\"install.sh:model_choice\",\"message\":\"model_choice\",\"data\":{\"raw\":\"$model_choice\"},\"timestamp\":$(date +%s)000}" >> "${DEBUG_LOG}" 2>/dev/null || true
+    # #endregion
+    
+    # Parse "1,3,5", "1 3 5", "2-4", "all"
+    indices=()
+    if [[ "$model_choice" == "all" ]]; then
+        for i in "${!WHISPER_MODELS[@]}"; do
+            indices+=($((i+1)))
+        done
+    else
+        # Replace commas with spaces, then split
+        cleaned="${model_choice//,/ }"
+        for part in $cleaned; do
+            if [[ "$part" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+                # Range like "2-4"
+                start="${BASH_REMATCH[1]}"
+                end="${BASH_REMATCH[2]}"
+                for ((i=start; i<=end; i++)); do
+                    if (( i >= 1 && i <= ${#WHISPER_MODELS[@]} )); then
+                        indices+=($i)
+                    fi
+                done
+            elif [[ "$part" =~ ^[0-9]+$ ]]; then
+                # Single number
+                num=$((part))
+                if (( num >= 1 && num <= ${#WHISPER_MODELS[@]} )); then
+                    indices+=($num)
+                fi
+            fi
+        done
+    fi
+    
+    # Remove duplicates and sort (no associative arrays — Bash 3.2 / macOS compatible)
+    if (( ${#indices[@]} > 0 )); then
+        unique_indices=()
+        for idx in "${indices[@]}"; do
+            found=0
+            # Check if idx already in unique_indices (handle empty array case)
+            if (( ${#unique_indices[@]} > 0 )); then
+                for u in "${unique_indices[@]}"; do
+                    [[ "$u" == "$idx" ]] && { found=1; break; }
+                done
+            fi
+            [[ $found -eq 0 ]] && unique_indices+=($idx)
+        done
+        # Sort unique indices
+        if (( ${#unique_indices[@]} > 0 )); then
+            IFS=$'\n' sorted_indices=($(sort -n <<<"${unique_indices[*]}"))
+            unset IFS
+        else
+            sorted_indices=()
+        fi
+        # #region agent log
+        echo "{\"sessionId\":\"3b00e9\",\"location\":\"install.sh:parsed\",\"message\":\"parsed_indices\",\"data\":{\"sorted\":\"${sorted_indices[*]}\",\"count\":${#sorted_indices[@]}},\"timestamp\":$(date +%s)000}" >> "${DEBUG_LOG}" 2>/dev/null || true
+        # #endregion
+        if (( ${#sorted_indices[@]} > 0 )); then
+            break
+        fi
+    fi
+    
+    warn "Enter numbers (e.g. 2,4,5 or 2-5 or all)"
+done
+
+# Convert indices to model names
+to_download=()
+for idx in "${sorted_indices[@]}"; do
+    to_download+=("${WHISPER_MODELS[$((idx-1))]}")
+done
+
+# Prompt for default model
+default_idx=$default_model
+# #region agent log
+echo "{\"sessionId\":\"3b00e9\",\"location\":\"install.sh:default_check\",\"message\":\"default_model_check\",\"data\":{\"default_idx\":$default_idx,\"sorted_indices\":\"${sorted_indices[*]}\"},\"timestamp\":$(date +%s)000}" >> "${DEBUG_LOG}" 2>/dev/null || true
+# #endregion
+# Check if default is in selection (Bash 3.2 compatible)
+default_in_selection=0
+for idx in "${sorted_indices[@]}"; do
+    if [[ "$idx" == "$default_idx" ]]; then
+        default_in_selection=1
         break
     fi
-    warn "Enter a number between 1 and ${#WHISPER_MODELS[@]}"
 done
-chosen_model="${WHISPER_MODELS[$((model_choice-1))]}"
-ok "Model: $chosen_model"
+if [[ $default_in_selection -eq 1 ]]; then
+    # Default is in the selection, use it
+    chosen_model="${WHISPER_MODELS[$((default_idx-1))]}"
+    # #region agent log
+    echo "{\"sessionId\":\"3b00e9\",\"location\":\"install.sh:default_set\",\"message\":\"default_model_set\",\"data\":{\"chosen\":\"$chosen_model\"},\"timestamp\":$(date +%s)000}" >> "${DEBUG_LOG}" 2>/dev/null || true
+    # #endregion
+else
+    # Default not in selection, prompt
+    echo ""
+    echo "  Which model as default for recordings?"
+    for idx in "${sorted_indices[@]}"; do
+        printf '    %d. %s\n' "$idx" "${WHISPER_MODELS[$((idx-1))]}"
+    done
+    while true; do
+        read -rp "  Default model (number): " default_choice
+        if [[ "$default_choice" =~ ^[0-9]+$ ]]; then
+            # Check if choice is in selection
+            choice_in_selection=0
+            for idx in "${sorted_indices[@]}"; do
+                if [[ "$idx" == "$default_choice" ]]; then
+                    choice_in_selection=1
+                    break
+                fi
+            done
+            if [[ $choice_in_selection -eq 1 ]]; then
+                chosen_model="${WHISPER_MODELS[$((default_choice-1))]}"
+                break
+            fi
+        fi
+        warn "Enter a number from your selection"
+    done
+fi
+
+if (( ${#to_download[@]} == 1 )); then
+    ok "Model: ${to_download[0]}"
+else
+    ok "Models: ${to_download[*]}"
+fi
 
 echo ""
 read -rp "  Transcription language (ISO 639-1 code, e.g. en, fr, de, or 'auto') [en]: " chosen_lang
@@ -182,21 +306,37 @@ if [[ -n "$alias_name" ]]; then
     ok "Added to $SHELL_RC: $ALIAS_LINE"
 fi
 
-# ── 6. Download whisper model ────────────────────────────────────────────────
+# ── 6. Download whisper models ────────────────────────────────────────────────
 
-info "Whisper model"
+info "Whisper models"
 
-echo ""
-read -rp "  Download/verify the '$chosen_model' model now? [Y/n] " dl_yn
-if [[ "$dl_yn" != [nN] ]]; then
-    echo "  Downloading '$chosen_model' (this may take a moment)..."
-    "$VENV_DIR/bin/python" -c "
-from liscribe.transcriber import load_model
-load_model('$chosen_model')
-"
-    ok "Model '$chosen_model' ready"
+if (( ${#to_download[@]} == 0 )); then
+    warn "No models selected — skipping download"
 else
-    warn "Skipped — model will download on first use"
+    models_str="${to_download[*]}"
+    models_str="${models_str// /, }"
+    echo ""
+    read -rp "  Download ${#to_download[@]} model(s) now? ($models_str) [Y/n] " dl_yn
+    if [[ "$dl_yn" != [nN] ]]; then
+        for model_name in "${to_download[@]}"; do
+            # Check if already installed
+            if "$VENV_DIR/bin/python" -c "from liscribe.transcriber import is_model_available; exit(0 if is_model_available('$model_name') else 1)" 2>/dev/null; then
+                echo "  Skipping '$model_name' (already installed)"
+                continue
+            fi
+            echo "  Downloading '$model_name' (this may take a moment)..."
+            if "$VENV_DIR/bin/python" -c "
+from liscribe.transcriber import load_model
+load_model('$model_name')
+" 2>&1; then
+                ok "Model '$model_name' ready"
+            else
+                warn "Failed to download '$model_name'"
+            fi
+        done
+    else
+        warn "Skipped — models will download on first use"
+    fi
 fi
 
 # ── 7. Done ──────────────────────────────────────────────────────────────────
@@ -211,6 +351,9 @@ echo ""
 echo "  Then:"
 echo "    ${alias_name:-rec} -f ~/transcripts              # record mic"
 echo "    ${alias_name:-rec} -f ~/transcripts -s           # record mic + speaker"
-echo "    ${alias_name:-rec} setup                         # re-configure model/language"
+echo "    ${alias_name:-rec} setup                         # add/change models or language"
 echo "    ${alias_name:-rec} devices                       # list audio devices"
+echo ""
+echo "  Use -xxs -xs -sm -md -lg to transcribe with multiple models (e.g. ${alias_name:-rec} -h -xxs -sm)."
+echo "  Run ${alias_name:-rec} setup to download any models you did not install now."
 echo ""
