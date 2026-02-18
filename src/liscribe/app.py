@@ -2,7 +2,8 @@
 
 Layout:
 ┌─────────────────────────────────────────────┐
-│  liscribe  ●  REC  00:01:23   Mic: MacBook  │
+│  liscribe  ●  REC  00:01:23                 │
+│  Mic: MacBook Pro Microphone                 │
 ├─────────────────────────────────────────────┤
 │  ▁▂▃▅▇▅▃▂▁▂▃▄▅▆▇▆▅▄▃▂▁▂▃▅▇▅▃▂▁           │
 ├─────────────────────────────────────────────┤
@@ -110,6 +111,12 @@ class RecordingApp(App[str | None]):
         padding: 0 1;
     }
 
+    #mic-bar {
+        height: 1;
+        padding: 0 1;
+        color: $text-muted;
+    }
+
     #waveform {
         height: 3;
         padding: 0 1;
@@ -177,6 +184,7 @@ class RecordingApp(App[str | None]):
 
     def compose(self) -> ComposeResult:
         yield Static("", id="status-bar")
+        yield Static("Mic: —", id="mic-bar")
         yield Static("", id="waveform")
         yield Vertical(
             Static("", id="notes-log"),
@@ -266,8 +274,9 @@ class RecordingApp(App[str | None]):
             dev_name = dev_info["name"]
 
         mode = " + Speaker" if self.speaker else ""
-        status = f"  liscribe  ●  REC  {hrs:02d}:{mins:02d}:{secs:02d}   Mic: {dev_name}{mode}"
+        status = f"  liscribe  ●  REC  {hrs:02d}:{mins:02d}:{secs:02d}{mode}"
         self.query_one("#status-bar", Static).update(status)
+        self.query_one("#mic-bar", Static).update(f"Mic: {dev_name}")
 
         waveform_str = self.waveform.render()
         self.query_one("#waveform", Static).update(f"  {waveform_str}")
