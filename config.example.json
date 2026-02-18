@@ -1,0 +1,35 @@
+{
+    "_description": "Liscribe configuration. Copy to ~/.config/liscribe/config.json to customize.",
+    "save_folder": {
+        "value": "~/transcripts",
+        "description": "Default folder to save recordings and transcripts. Override with -f flag."
+    },
+    "default_mic": {
+        "value": null,
+        "description": "Default input device name or index. null = system default. Override with --mic flag."
+    },
+    "whisper_model": {
+        "value": "base",
+        "description": "Whisper model size: tiny, base, small, medium, large. Larger = more accurate but slower."
+    },
+    "auto_clipboard": {
+        "value": true,
+        "description": "Automatically copy transcript to clipboard after transcription."
+    },
+    "sample_rate": {
+        "value": 16000,
+        "description": "Audio sample rate in Hz. 16000 is optimal for whisper. Change only if you know what you're doing."
+    },
+    "channels": {
+        "value": 1,
+        "description": "Number of audio channels. 1 = mono (recommended for transcription)."
+    },
+    "speaker_device": {
+        "value": "Multi-Output Device",
+        "description": "Name of the multi-output device that includes BlackHole, used when -s flag is set."
+    },
+    "blackhole_device": {
+        "value": "BlackHole 2ch",
+        "description": "Name of the BlackHole virtual audio device for speaker capture."
+    }
+}

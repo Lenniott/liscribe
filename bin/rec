@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Launcher script: activates the project venv and runs rec.
+# Usage: ./bin/rec -f /path/to/save [-s]
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+VENV_DIR="$PROJECT_DIR/.venv"
+
+if [ ! -d "$VENV_DIR" ]; then
+    echo "Error: No .venv found at $VENV_DIR"
+    echo "Run: python3 -m venv $VENV_DIR && source $VENV_DIR/bin/activate && pip install -e $PROJECT_DIR"
+    exit 1
+fi
+
+exec "$VENV_DIR/bin/rec" "$@"
