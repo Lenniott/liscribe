@@ -1,6 +1,7 @@
 # Liscribe
 
 100% offline terminal audio recorder and transcriber for macOS.
+![Liscribe screenshot](liscribe.png)
 
 Record from your microphone (and optionally system audio via BlackHole), transcribe locally with faster-whisper, and save Markdown transcripts — all without any network access.
 
