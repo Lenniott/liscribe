@@ -212,20 +212,22 @@ class RecordingSession:
         if self.speaker:
             self.blackhole_idx = _find_blackhole_device(self.blackhole_name)
             if self.blackhole_idx is None:
+                cmd_name = load_config().get("command_alias", "rec")
                 print(
                     f"Error: BlackHole device '{self.blackhole_name}' not found.\n"
-                    "Run 'rec setup' for install instructions.",
+                    f"Run '{cmd_name} setup' for install instructions.",
                     file=sys.stderr,
                 )
                 return None
 
             self._original_output = get_current_output_device()
             if not set_output_device(self.speaker_device_name):
+                cmd_name = load_config().get("command_alias", "rec")
                 print(
                     f"Error: Could not switch output to '{self.speaker_device_name}'.\n"
                     "Make sure you've created a Multi-Output Device in Audio MIDI Setup\n"
                     "that includes your speakers AND BlackHole 2ch.\n"
-                    "Run 'rec setup' for instructions.",
+                    f"Run '{cmd_name} setup' for instructions.",
                     file=sys.stderr,
                 )
                 return None

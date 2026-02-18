@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import threading
 import time
 import wave
 from pathlib import Path
+
+# Marker line in shell rc for liscribe alias (must match install.sh)
+ALIAS_MARKER = "# liscribe"
 
 import click
 from rich.console import Console
@@ -149,6 +153,20 @@ def _resolve_folder(folder: str | None, here: bool) -> str:
     return cfg.get("save_folder", "~/transcripts")
 
 
+def _get_command_name(ctx: click.Context | None = None) -> str:
+    """Get the command name/alias from config or Click context.
+    
+    Priority: config command_alias > ctx.info_name > "rec"
+    """
+    cfg = load_config()
+    alias = cfg.get("command_alias")
+    if alias:
+        return alias
+    if ctx and ctx.info_name:
+        return ctx.info_name
+    return "rec"
+
+
 def _audio_description(audio_path: Path) -> str:
     """Brief human-readable description of an audio file (duration or size)."""
     try:
@@ -240,6 +258,7 @@ def _run_transcription_pipeline(
     mic_name: str = "system default",
     speaker_mode: bool = False,
     output_dir: str | Path | None = None,
+    ctx: click.Context | None = None,
 ) -> None:
     """Transcribe with one or more models, save outputs, clipboard, cleanup."""
     from liscribe.transcriber import is_model_available
@@ -247,6 +266,7 @@ def _run_transcription_pipeline(
 
     audio_path = Path(audio_path)
     multi_model = len(models) > 1
+    cmd_name = _get_command_name(ctx)
 
     available = [m for m in models if is_model_available(m)]
     skipped = [m for m in models if m not in available]
@@ -254,15 +274,15 @@ def _run_transcription_pipeline(
     for m in skipped:
         console.print(
             f"  [dim]\\[skip][/dim]  [bold]{m:<8}[/bold] "
-            f"not installed [dim](run 'rec setup' to download)[/dim]"
+            f"not installed [dim](run '{cmd_name} setup' to download)[/dim]"
         )
     if skipped:
-        console.print("  [dim]Tip: run [bold]scrib setup[/bold] to install more models.[/dim]")
+        console.print(f"  [dim]Tip: run [bold]{cmd_name} setup[/bold] to install more models.[/dim]")
 
     if not available:
         console.print()
         console.print("  [red bold]Error:[/red bold] None of the requested models are installed.")
-        console.print("  Run [bold]'rec setup'[/bold] to download models.")
+        console.print(f"  Run [bold]'{cmd_name} setup'[/bold] to download models.")
         console.print(f"  Audio file kept at: [dim]{audio_path}[/dim]")
         return
 
@@ -430,6 +450,7 @@ def main(
         notes=timestamped_notes if timestamped_notes else None,
         mic_name=mic or "system default",
         speaker_mode=speaker,
+        ctx=ctx,
     )
 
 
@@ -477,6 +498,7 @@ def transcribe_cmd(
             audio_path=str(audio_path),
             models=models,
             output_dir=output_dir,
+            ctx=ctx,
         )
 
 
@@ -487,9 +509,155 @@ main.add_command(transcribe_cmd, "t")
 # setup subcommand
 # ---------------------------------------------------------------------------
 
+def _get_shell_rc_path() -> Path:
+    """Path to the current shell's rc file (e.g. ~/.zshrc)."""
+    shell = os.path.basename(os.environ.get("SHELL", "/bin/zsh"))
+    if shell == "zsh":
+        return Path.home() / ".zshrc"
+    if shell == "bash":
+        return Path.home() / ".bashrc"
+    return Path.home() / f".{shell}rc"
+
+
+def _update_shell_alias(alias_name: str) -> Path | None:
+    """Update shell rc so the given alias runs liscribe. Remove old liscribe alias, add new one.
+    Returns the rc path if the file was updated, None otherwise.
+    """
+    rc = _get_shell_rc_path()
+    # Path to the rec binary (same bin dir as current interpreter)
+    rec_path = Path(sys.executable).parent / "rec"
+    if not rec_path.exists():
+        rec_path = Path(sys.executable).parent / "rec.exe"
+    if not rec_path.exists():
+        return None
+    alias_line = f"alias {alias_name}='{rec_path}'  {ALIAS_MARKER}\n"
+    try:
+        if rc.exists():
+            lines = rc.read_text(encoding="utf-8").splitlines(keepends=True)
+        else:
+            lines = []
+        new_lines = [line for line in lines if ALIAS_MARKER not in line]
+        prefix = "\n" if new_lines else ""
+        new_lines.append(prefix + alias_line)
+        rc.parent.mkdir(parents=True, exist_ok=True)
+        rc.write_text("".join(new_lines).rstrip() + "\n", encoding="utf-8")
+        return rc
+    except (OSError, IOError):
+        return None
+
+
+def _setup_configure_only(cfg: dict) -> None:
+    """Prompt for default model, language, and command alias; save config. No model download."""
+    from liscribe.config import save_config
+    from liscribe.transcriber import is_model_available
+
+    current_model = cfg.get("whisper_model", "base")
+    model_names = [name for name, _ in WHISPER_MODELS]
+
+    console.print()
+    console.print("  [bold]Default model[/bold]")
+    for i, (name, desc) in enumerate(WHISPER_MODELS, 1):
+        installed = " [green]✓[/green]" if is_model_available(name) else ""
+        current = " [dim](current default)[/dim]" if name == current_model else ""
+        console.print(f"    {i}. [bold]{name:<8}[/bold] {desc}{installed}{current}")
+    default_idx = model_names.index(current_model) + 1 if current_model in model_names else 2
+    default_choice = click.prompt(
+        "  Default model for recordings (number)",
+        type=click.IntRange(1, len(WHISPER_MODELS)),
+        default=default_idx,
+    )
+    default_model = model_names[default_choice - 1]
+
+    current_lang = cfg.get("language", "en")
+    console.print()
+    lang = click.prompt(
+        "  Transcription language (ISO 639-1 code, e.g. en, fr, de, or 'auto')",
+        default=current_lang,
+    ).strip().lower()
+
+    current_alias = cfg.get("command_alias", "rec")
+    console.print()
+    alias = click.prompt(
+        "  Command alias/name for help messages (e.g., rec, scrib)",
+        default=current_alias,
+    ).strip()
+
+    cfg["whisper_model"] = default_model
+    cfg["language"] = lang
+    cfg["command_alias"] = alias
+    save_config(cfg)
+    console.print(f"\n  Config saved: default=[bold]{default_model}[/bold], language=[bold]{lang}[/bold], alias=[bold]{alias}[/bold]")
+
+    rc_updated = _update_shell_alias(alias)
+    if rc_updated:
+        console.print(f"  Shell alias updated in [dim]{rc_updated}[/dim]")
+        console.print(f"  Run: [bold]source {rc_updated}[/bold]  to use [bold]{alias}[/bold] in this terminal.")
+
+
+def _setup_download_models(cfg: dict) -> None:
+    """Prompt for which models to download and download them."""
+    from liscribe.transcriber import is_model_available, load_model
+
+    current_model = cfg.get("whisper_model", "base")
+    model_names = [name for name, _ in WHISPER_MODELS]
+
+    console.print()
+    console.print("  Available whisper models:")
+    for i, (name, desc) in enumerate(WHISPER_MODELS, 1):
+        installed = " [green]✓[/green]" if is_model_available(name) else ""
+        current = " [dim](default)[/dim]" if name == current_model else ""
+        console.print(f"    {i}. [bold]{name:<8}[/bold] {desc}{installed}{current}")
+
+    console.print()
+    console.print("  [dim]Enter numbers to download (e.g. 2,4,5 or 2-5 or all), or leave empty to skip[/dim]")
+    raw = click.prompt(
+        "  Models to download",
+        default="",
+        show_default=False,
+    ).strip().lower()
+
+    if not raw:
+        console.print("  [dim]Skipping model download.[/dim]")
+        return
+
+    indices: set[int] = set()
+    if raw == "all":
+        indices = set(range(1, len(WHISPER_MODELS) + 1))
+    else:
+        for part in raw.replace(",", " ").split():
+            if "-" in part:
+                a, b = part.split("-", 1)
+                try:
+                    lo, hi = int(a.strip()), int(b.strip())
+                    indices.update(range(lo, hi + 1))
+                except ValueError:
+                    pass
+            else:
+                try:
+                    indices.add(int(part))
+                except ValueError:
+                    pass
+
+    to_download = [model_names[i - 1] for i in sorted(indices) if 1 <= i <= len(WHISPER_MODELS)]
+    if not to_download:
+        console.print("  [dim]No models selected.[/dim]")
+        return
+
+    for model_size in to_download:
+        if is_model_available(model_size):
+            console.print(f"  [dim]Skipping [bold]{model_size}[/bold] (already installed)[/dim]")
+            continue
+        with console.status(f"  Downloading [bold]{model_size}[/bold]..."):
+            try:
+                load_model(model_size)
+                console.print(f"  [green]Ready:[/green] {model_size}")
+            except Exception as exc:
+                console.print(f"  [red]Error [bold]{model_size}[/bold]:[/red] {exc}")
+
+
 @main.command()
 def setup() -> None:
-    """Check dependencies and initialise config."""
+    """Check dependencies and configure liscribe."""
     from liscribe.config import save_config
     from liscribe.platform_setup import run_all_checks
 
@@ -514,90 +682,31 @@ def setup() -> None:
     else:
         console.print("  [yellow]Some checks failed.[/yellow] See above for install instructions.")
 
-    # --- Whisper model selection (multi-select) ---
-    from liscribe.transcriber import is_model_available, load_model
-
     cfg = load_config()
-    current_model = cfg.get("whisper_model", "base")
-    model_names = [name for name, _ in WHISPER_MODELS]
 
     console.print()
-    console.print("  Available whisper models:")
-    for i, (name, desc) in enumerate(WHISPER_MODELS, 1):
-        installed = " [green]✓[/green]" if is_model_available(name) else ""
-        current = " [dim](default)[/dim]" if name == current_model else ""
-        console.print(f"    {i}. [bold]{name:<8}[/bold] {desc}{installed}{current}")
-
-    console.print()
-    console.print("  [dim]Enter numbers to download (e.g. 2,4,5 or 2-5 or all)[/dim]")
-    raw = click.prompt(
-        "  Models to download",
-        default="2",
-        show_default=True,
-    ).strip().lower()
-
-    # Parse "1,3,5", "1 3 5", "2-4", "all"
-    indices: set[int] = set()
-    if raw == "all":
-        indices = set(range(1, len(WHISPER_MODELS) + 1))
-    else:
-        for part in raw.replace(",", " ").split():
-            if "-" in part:
-                a, b = part.split("-", 1)
-                try:
-                    lo, hi = int(a.strip()), int(b.strip())
-                    indices.update(range(lo, hi + 1))
-                except ValueError:
-                    pass
-            else:
-                try:
-                    indices.add(int(part))
-                except ValueError:
-                    pass
-
-    to_download = [model_names[i - 1] for i in sorted(indices) if 1 <= i <= len(WHISPER_MODELS)]
-    if not to_download:
-        to_download = [current_model] if current_model in model_names else [model_names[1]]  # base
-
-    # Default model for single-model use
-    default_idx = model_names.index(current_model) + 1 if current_model in model_names else 2
-    default_choice = click.prompt(
-        "  Default model for recordings (number)",
-        type=click.IntRange(1, len(WHISPER_MODELS)),
-        default=default_idx,
+    console.print("  [bold]What would you like to do?[/bold]")
+    console.print("    1. [dim]Exit[/dim] (dependency check done)")
+    console.print("    2. Configure settings only (alias, language, default model)")
+    console.print("    3. Download whisper models")
+    console.print("    4. Configure settings, then download models")
+    choice = click.prompt(
+        "  Choice",
+        type=click.IntRange(1, 4),
+        default=1,
     )
-    default_model = model_names[default_choice - 1]
 
-    # --- Language selection ---
-    current_lang = cfg.get("language", "en")
-    console.print()
-    lang = click.prompt(
-        "  Transcription language (ISO 639-1 code, e.g. en, fr, de, or 'auto')",
-        default=current_lang,
-    ).strip().lower()
-
-    cfg["whisper_model"] = default_model
-    cfg["language"] = lang
-    save_config(cfg)
-    console.print(f"\n  Config saved: default=[bold]{default_model}[/bold], language=[bold]{lang}[/bold]")
-
-    if not to_download:
+    if choice == 1:
         return
-
-    if click.confirm(
-        f"  Download {len(to_download)} model(s) now? ({', '.join(to_download)})",
-        default=True,
-    ):
-        for model_size in to_download:
-            if is_model_available(model_size):
-                console.print(f"  [dim]Skipping [bold]{model_size}[/bold] (already installed)[/dim]")
-                continue
-            with console.status(f"  Downloading [bold]{model_size}[/bold]..."):
-                try:
-                    load_model(model_size)
-                    console.print(f"  [green]Ready:[/green] {model_size}")
-                except Exception as exc:
-                    console.print(f"  [red]Error [bold]{model_size}[/bold]:[/red] {exc}")
+    if choice == 2:
+        _setup_configure_only(cfg)
+        return
+    if choice == 3:
+        _setup_download_models(cfg)
+        return
+    # choice == 4
+    _setup_configure_only(load_config())
+    _setup_download_models(load_config())
 
 
 # ---------------------------------------------------------------------------
@@ -615,8 +724,9 @@ def config(ctx: click.Context, show: bool) -> None:
             console.print(f"  [bold]{key}:[/bold] {val}")
     else:
         console.print(f"  Config file: [dim]{CONFIG_PATH}[/dim]")
+        cmd_name = _get_command_name(ctx)
         console.print(
-            f"  Edit it directly, or use [bold]'{ctx.info_name} config --show'[/bold] to view current values."
+            f"  Edit it directly, or use [bold]'{cmd_name} config --show'[/bold] to view current values."
         )
 
 
@@ -631,9 +741,10 @@ def devices(ctx: click.Context) -> None:
     try:
         import sounddevice as sd
     except OSError:
+        cmd_name = _get_command_name(ctx)
         console.print(
             f"  [red]Error:[/red] PortAudio not found. "
-            f"Run [bold]'{ctx.info_name} setup'[/bold] for instructions."
+            f"Run [bold]'{cmd_name} setup'[/bold] for instructions."
         )
         sys.exit(1)
 

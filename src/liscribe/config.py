@@ -49,6 +49,10 @@ DEFAULTS: dict[str, dict[str, Any]] = {
         "value": "en",
         "description": "Transcription language (ISO 639-1 code, e.g. en, fr, de). Use 'auto' for auto-detect.",
     },
+    "command_alias": {
+        "value": "rec",
+        "description": "Command alias/name displayed in help text and messages. Change this if you use a different alias (e.g., 'scrib', 'rec').",
+    },
 }
 
 
