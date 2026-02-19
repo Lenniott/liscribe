@@ -318,6 +318,8 @@ def _run_transcription_pipeline(
     for i, (_, _, p) in enumerate(results):
         prefix = "  [green]Saved[/green]         " if i == 0 else "                  "
         console.print(f"{prefix}[dim]{Path(p).name}[/dim]")
+    first_md = results[0][2]
+    console.print(f"  [dim]Transcript: {first_md.resolve()}[/dim]")
 
     # -- Clipboard: pick highest-quality model --
     cfg = load_config()
@@ -440,6 +442,7 @@ def main(
         speaker_mode=speaker,
         ctx=ctx,
     )
+    console.print(f"  [dim]Tip: [bold]{_get_command_name(ctx)} t <file>[/bold] transcribes a file; use [bold]-sm[/bold], [bold]-md[/bold] etc. for other models.[/dim]")
 
 
 # ---------------------------------------------------------------------------
@@ -710,12 +713,14 @@ def config(ctx: click.Context, show: bool) -> None:
         cfg = load_config()
         for key, val in cfg.items():
             console.print(f"  [bold]{key}:[/bold] {val}")
+        console.print(f"  [dim]See config.example.json or README for all options and descriptions.[/dim]")
     else:
         console.print(f"  Config file: [dim]{CONFIG_PATH}[/dim]")
         cmd_name = _get_command_name(ctx)
         console.print(
             f"  Edit it directly, or use [bold]'{cmd_name} config --show'[/bold] to view current values."
         )
+        console.print(f"  [dim]See config.example.json or README for all options and descriptions.[/dim]")
 
 
 # ---------------------------------------------------------------------------

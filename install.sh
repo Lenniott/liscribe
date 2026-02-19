@@ -48,7 +48,7 @@ ok "Homebrew"
 # ── 2. Brew dependencies (check only; do not install) ────────────────────────
 
 info "Checking Homebrew dependencies"
-
+echo "  (If you install missing deps with brew, it may print a lot of output; that's normal — wait for the next step.)"
 printf '\n'
 read -rp "  Enable speaker/system-audio capture? (requires BlackHole) [y/N] " speaker_yn
 

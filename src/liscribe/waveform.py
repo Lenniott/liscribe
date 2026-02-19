@@ -33,26 +33,37 @@ class WaveformMonitor:
             self._peak = max(self._peak, rms)
 
     def get_levels(self) -> list[float]:
-        """Return current level history as list of 0.0–1.0 values."""
+        """Return current level history as list of 0.0–1.0 values.
+        Uses a decaying peak so the scale doesn't get stuck after loud moments.
+        """
         with self._lock:
             if not self._history:
                 return []
-            peak = self._peak if self._peak > 0 else 1.0
+            current_max = max(self._history)
+            # Decay peak slowly so display recovers after loud spikes
+            peak = max(self._peak * 0.997, current_max, 1e-6)
+            self._peak = peak
             return [min(v / peak, 1.0) for v in self._history]
 
-    def render(self) -> str:
-        """Render the waveform as a string of Unicode block characters."""
+    def render(self, width: int | None = None) -> str:
+        """Render the waveform as a string of Unicode block characters.
+        If width is given, use that many characters (responsive to terminal width).
+        """
+        w = width if width is not None and width > 0 else BAR_WIDTH
         levels = self.get_levels()
         if not levels:
-            return " " * BAR_WIDTH
+            return " " * w
+        # Sample or pad levels to match width
+        if len(levels) >= w:
+            step = len(levels) / w
+            levels = [levels[int(i * step)] for i in range(w)]
+        else:
+            levels = ([0.0] * (w - len(levels))) + levels
         chars = []
         for level in levels:
             idx = int(level * (len(BLOCKS) - 1))
             chars.append(BLOCKS[idx])
-        # Pad to full width
-        while len(chars) < BAR_WIDTH:
-            chars.insert(0, " ")
-        return "".join(chars[-BAR_WIDTH:])
+        return "".join(chars[:w])
 
     def get_current_rms(self) -> float:
         """Return the most recent RMS value."""

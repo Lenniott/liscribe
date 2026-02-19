@@ -38,11 +38,21 @@ This removes the virtual environment, config, model cache, and shell alias. Opti
 ```bash
 rec -f /path/to/save              # Record mic, save to folder
 rec -f /path/to/save -s           # Record mic + speaker (BlackHole)
-rec -f /path/to/save --mic "USB"  # Use a specific microphone
+rec -f /path/to/save --mic "USB" # Use a specific microphone
+rec -h                            # Save to ./docs/transcripts in current directory
+rec transcribe file.wav           # Transcribe existing audio (or rec t file.wav)
 rec devices                       # List available input devices
 rec setup                         # Re-configure model, language, check deps
 rec config --show                 # Show current config
+rec --help                        # Full command and option list
 ```
+
+During recording you can type notes; they are timestamped and included in the transcript as footnote references [1], [2] and a Notes section.
+
+## Models and transcription
+
+- **Default model** comes from config (`whisper_model`). Override per run with `--tiny`, `--base`, `--small`, `--medium`, `--large` (short: `-xxs`, `-xs`, `-sm`, `-md`, `-lg`).
+- **Multi-model:** pass multiple flags (e.g. `rec -f ~/out -sm -md` or `rec t file.wav -sm -md`) to get one transcript per model; filenames get a model suffix when using more than one; clipboard gets the highest-quality result. Run `rec setup` to install more models.
 
 ## Configuration
 
