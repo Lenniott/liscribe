@@ -83,17 +83,20 @@ def build_markdown(
         from liscribe.config import load_config
         model_name = load_config().get("whisper_model", "base")
 
-    front_matter = {
+    front_matter: dict = {
         "title": f"Transcript {now.strftime('%Y-%m-%d %H:%M')}",
         "date": now.isoformat(),
         "duration_seconds": round(result.duration, 1),
         "word_count": result.word_count,
         "language": result.language,
-        "mic": mic_name,
         "speaker_capture": speaker_mode,
-        "source_audio": audio_path.name,
         "model": model_name,
     }
+    # Only include mic name if it's a real, known device name.
+    # Omitting "unknown" avoids writing a misleading field and keeps
+    # exported transcripts free of unhelpful hardware noise.
+    if mic_name and mic_name.lower() != "unknown":
+        front_matter["mic"] = mic_name
 
     lines = ["---"]
     lines.append(yaml.dump(front_matter, default_flow_style=False, sort_keys=False).strip())
@@ -153,6 +156,7 @@ def save_transcript(
     )
 
     md_path.write_text(content, encoding="utf-8")
+    md_path.chmod(0o600)  # owner read/write only — transcripts may contain sensitive speech
     logger.info("Transcript saved: %s", md_path)
     return md_path
 

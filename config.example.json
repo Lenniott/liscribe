@@ -13,8 +13,8 @@
         "description": "Whisper model size: tiny, base, small, medium, large. Larger = more accurate but slower."
     },
     "auto_clipboard": {
-        "value": true,
-        "description": "Automatically copy transcript to clipboard after transcription."
+        "value": false,
+        "description": "Automatically copy transcript to clipboard after transcription. Disabled by default — enable if you trust your clipboard managers with recording content."
     },
     "sample_rate": {
         "value": 16000,

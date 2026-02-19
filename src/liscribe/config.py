@@ -26,8 +26,8 @@ DEFAULTS: dict[str, dict[str, Any]] = {
         "description": "Whisper model size: tiny, base, small, medium, large.",
     },
     "auto_clipboard": {
-        "value": True,
-        "description": "Automatically copy transcript to clipboard after transcription.",
+        "value": False,
+        "description": "Automatically copy transcript to clipboard after transcription. Disabled by default — enable if you trust your clipboard managers with recording content.",
     },
     "sample_rate": {
         "value": 16000,
@@ -75,7 +75,10 @@ def load_config() -> dict[str, Any]:
                 else:
                     values[key] = entry
         except (json.JSONDecodeError, OSError) as exc:
-            logger.warning("Could not read config at %s: %s", CONFIG_PATH, exc)
+            # Full path goes to debug log (file only); stderr gets filename + error type only
+            # to avoid leaking the home directory path in shared terminal sessions.
+            logger.debug("Could not read config at %s: %s", CONFIG_PATH, exc)
+            logger.warning("Could not read %s: %s", CONFIG_PATH.name, type(exc).__name__)
 
     return values
 

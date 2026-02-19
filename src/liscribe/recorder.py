@@ -329,6 +329,7 @@ class RecordingSession:
 
         audio_int16 = np.clip(audio_data * 32767, -32768, 32767).astype(np.int16)
         wavfile.write(str(wav_path), self.sample_rate, audio_int16)
+        wav_path.chmod(0o600)  # owner read/write only — audio recordings are private
 
         mins, secs = divmod(int(elapsed), 60)
         print(f"Saved: {wav_path} ({mins}m {secs}s)")
