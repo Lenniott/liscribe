@@ -1,0 +1,229 @@
+Screen {
+    align: center middle;
+    background: $background;
+}
+
+#app-frame {
+    width: 100%;
+    height: 100%;
+    max-width: 100;      /* optional: cap for very wide terminals */
+    max-height: 40;      /* optional: cap for very tall terminals */
+    border: round $accent;
+    padding: 0 0;
+    background: $surface;
+}
+
+/* Top bar */
+
+#top-bar {
+    width: 100%;
+    height: 1;
+    padding: 0 1;
+    background: $accent;
+    color: $text;
+    align: left middle;
+}
+
+#status-text {
+    width: 1fr;
+}
+
+#top-bar-buttons {
+    width: auto;
+    height: 1;
+    align: right middle;
+    column-span: 1;
+}
+
+#top-bar-buttons Button {
+    background: transparent;
+    color: $text;
+    border: none;
+    text-style: bold;
+    width: auto;
+    max-width: 16;
+    min-width: 3;
+}
+
+#top-bar-buttons Button:hover {
+    background: $surface;
+    text-style: bold underline;
+}
+
+#top-bar-buttons Button:focus {
+    background: $surface;
+    text-style: bold underline;
+}
+
+/* Mic bar */
+
+#mic-bar {
+    height: 1;
+    padding: 0 1;
+    color: $text-muted;
+}
+
+/* Waveforms */
+
+#waveform-container {
+    width: 100%;
+    padding: 0 1;
+}
+
+#waveform-label,
+#waveform-speaker-label {
+    color: $text-muted;
+    padding-left: 0;
+}
+
+#waveform,
+#waveform-speaker {
+    width: 100%;
+    height: 3;
+    padding: 0;
+    background: $surface;
+    border: solid $accent;
+    margin-top: 0;
+}
+
+/* Speaker visibility toggling */
+
+#waveform-speaker,
+#waveform-speaker-label {
+    display: none;
+}
+
+.waveform-speaker-on #waveform-speaker,
+.waveform-speaker-on #waveform-speaker-label {
+    display: block;
+}
+
+/* Notes */
+
+#notes-container {
+    height: 1fr;
+    min-height: 5;
+    padding: 0 1;
+}
+
+#notes-help {
+    color: $text-muted;
+    margin-bottom: 0;
+}
+
+#notes-scroll {
+    height: 1fr;
+    min-height: 3;
+}
+
+#notes-log {
+    height: auto;
+}
+
+#note-input {
+    margin-bottom: 1;
+    border: solid $secondary;
+}
+
+#note-input:focus {
+    border: solid $primary;
+}
+
+/* Footer */
+
+#footer-bar {
+    width: 100%;
+    height: 1;
+    padding: 0 1;
+    align: left middle;
+    background: $surface;
+    color: $text-muted;
+}
+
+#footer-bar Button {
+    color: $text-muted;
+    border: none;
+}
+
+#footer-bar Button:hover {
+    background: $background;
+    color: $text;
+}
+
+#footer-bar Button:focus {
+    background: $background;
+    color: $text;
+}
+
+#btn-footer-save {
+    background: $primary;
+    width: auto;
+    align: left middle;
+}
+
+
+#footer-bar-spacer {
+    width: 1fr;
+    min-width: 5;
+}
+
+#btn-footer-cancel {
+    width: auto;
+    align: right middle;
+}
+
+/* Modals */
+
+ModalScreen {
+    align: center middle;
+    background: $boost;
+}
+
+/* Mic select modal */
+
+#mic-select-container {
+    align: center middle;
+    width: 60;
+    height: auto;
+    min-height: 8;
+    max-height: 20;
+    background: $surface;
+    border: round $accent;
+    padding: 1 2;
+}
+
+#mic-select-title {
+    text-align: center;
+    margin-bottom: 1;
+}
+
+#mic-list {
+    height: auto;
+    min-height: 3;
+    max-height: 15;
+}
+
+/* Cancel confirm modal */
+
+#cancel-confirm-container {
+    width: 55;
+    min-width: 50;
+    padding: 1 2;
+    height: auto;
+    margin-top: 1;
+    margin-left: 1;
+    margin-right: 1;
+    margin-bottom: 1;
+    background: $surface;
+    border: round $accent;
+}
+
+#cancel-confirm-message {
+    width: 100%;
+    margin-bottom: 1;
+    text-align: center;
+}
+
+#cancel-confirm-list {
+    min-width: 1fr;
+}

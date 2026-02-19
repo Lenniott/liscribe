@@ -1,26 +1,8 @@
-"""Textual TUI app for recording sessions.
-
-Layout:
-┌─────────────────────────────────────────────┐
-│  liscribe  ●  REC  00:01:23                 │
-│  Mic: MacBook Pro Microphone                 │
-├─────────────────────────────────────────────┤
-│  ▁▂▃▅▇▅▃▂▁▂▃▄▅▆▇▆▅▄▃▂▁▂▃▅▇▅▃▂▁           │
-├─────────────────────────────────────────────┤
-│  Notes:                                      │
-│  [1] Remember to follow up on Q3 budget      │
-│  > _                                         │
-├─────────────────────────────────────────────┤
-│  ^s Stop & Save  |  ^C Cancel                 │
-└─────────────────────────────────────────────┘
-"""
-
 from __future__ import annotations
 
 import json
 import time
 from typing import Any
-
 
 import numpy as np
 import sounddevice as sd
@@ -77,28 +59,11 @@ class MicSelectScreen(ModalScreen[int | None]):
 class ConfirmCancelScreen(ModalScreen[bool]):
     """Ask user to confirm discarding the recording."""
 
-    BINDINGS = [Binding("escape", "no", "No")]
-
-    CSS = """
-    #cancel-confirm-container {
-        width: 55;
-        min-width: 50;
-        padding: 1 2;
-        height: auto;
-        margin-top: 1;
-        margin-left: 1;
-        margin-right: 1;
-        margin-bottom: 1;
-    }
-    #cancel-confirm-message {
-        width: 100%;
-        margin-bottom: 1;
-        text-align: center;
-    }
-    #cancel-confirm-list {
-        min-width: 1fr;
-    }
-    """
+    BINDINGS = [
+        Binding("escape", "no", "No"),
+        Binding("y", "yes", "Yes"),
+        Binding("n", "no", "No"),
+    ]
 
     def compose(self) -> ComposeResult:
         yield Vertical(
@@ -117,6 +82,9 @@ class ConfirmCancelScreen(ModalScreen[bool]):
         else:
             self.dismiss(False)
 
+    def action_yes(self) -> None:
+        self.dismiss(True)
+
     def action_no(self) -> None:
         self.dismiss(False)
 
@@ -125,139 +93,16 @@ class RecordingApp(App[str | None]):
     """Main recording TUI application."""
 
     ENABLE_COMMAND_PALETTE = False
-    # Prefer Tokyo Night theme if available (e.g. from textual-themes); otherwise default.
 
-    CSS = """
-    #top-bar {
-        width: 100%;
-        height: 1;
-        padding: 0 1;
-        background: $accent;
-        color: $text;
-        align: left middle;
-    }
-    #status-text {
-        width: 1fr;
-    }
-    #top-bar-buttons {
-        width: auto;
-    }
-
-    #top-bar-buttons Button {
-        margin-left: 1;
-        background: transparent;
-        color: $text;
-        border: none;
-        text-style: bold;
-        width: auto;
-        max-width: 12;
-        min-width: 3;
-    }
-    #top-bar-buttons Button:hover {
-        background: $surface;
-        text-style: bold underline;
-    }
-    #top-bar-buttons Button:focus {
-        background: $surface;
-        text-style: bold underline;
-    }
-
-    #mic-bar {
-        height: 1;
-        padding: 0 1;
-        color: $text-muted;
-    }
-
-    #waveform, #waveform-speaker {
-        height: auto;
-        padding: 1;
-        background: $surface;
-    }
-
-    #notes-container {
-        height: 1fr;
-        min-height: 5;
-        padding: 0 1;
-    }
-
-    #notes-help {
-        color: $text-muted;
-        margin-bottom: 0;
-    }
-
-    #notes-scroll {
-        height: 1fr;
-        min-height: 3;
-    }
-
-    #notes-log {
-        height: auto;
-    }
-
-    #note-input {
-        margin-top: 1;
-    }
-
-    #footer-bar {
-        width: 100%;
-        height: 1;
-        padding: 0 1;
-        align: left middle;
-        background: $surface;
-        color: $text-muted;
-    }
-    #footer-bar Button {
-        background: transparent;
-        color: $text-muted;
-        border: none;
-    }
-    #footer-bar Button:hover {
-        background: $background;
-        color: $text;
-    }
-    #footer-bar Button:focus {
-        background: $background;
-        color: $text;
-    }
-    #btn-footer-save {
-        width: auto;
-        align: left middle;
-    }
-    #footer-bar-spacer {
-        width: 1fr;
-        min-width: 1;
-    }
-    #btn-footer-cancel {
-        width: auto;
-        align: right middle;
-    }
-
-    #mic-select-container {
-        align: center middle;
-        width: 60;
-        height: auto;
-        min-height: 8;
-        max-height: 20;
-        background: $surface;
-        border: tall $accent;
-        padding: 1 2;
-    }
-
-    #mic-select-title {
-        text-align: center;
-        margin-bottom: 1;
-    }
-
-    #mic-list {
-        height: auto;
-        min-height: 3;
-        max-height: 15;
-    }
-    """
+    CSS_PATH = "rec.css"
 
     BINDINGS = [
         Binding("ctrl+s", "stop_save", "Stop & Save", key_display="^s"),
         Binding("ctrl+c", "cancel", "Cancel", key_display="^C"),
+        Binding("ctrl+m", "change_mic", "Change mic", key_display="^m"),
+        Binding("ctrl+p", "toggle_speaker", "Toggle speaker", key_display="^p"),
+        Binding("ctrl+n", "focus_notes", "Focus notes", key_display="^n"),
+        Binding("ctrl+y", "screenshot", "Screenshot", key_display="^y"),
     ]
 
     def __init__(
@@ -281,39 +126,57 @@ class RecordingApp(App[str | None]):
         self._exit_error_message: str | None = None
 
     def compose(self) -> ComposeResult:
-        # Top bar: status + Speaker + Mic (wireframe)
-        with Horizontal(id="top-bar"):
-            yield Static("", id="status-text")
-            with Horizontal(id="top-bar-buttons"):
-                yield Button("Speaker", id="btn-speaker")
-                yield Button("Mic", id="btn-mic")
-        yield Static("Mic: —", id="mic-bar")
-        yield Static("", id="waveform")
-        if self.speaker:
-            yield Static("", id="waveform-speaker")
-        # Notes: scrollable log + input
-        with Vertical(id="notes-container"):
-            yield Static("Notes are added to the transcript as footnotes.", id="notes-help")
-            with ScrollableContainer(id="notes-scroll"):
-                yield Static("", id="notes-log")
-            yield Input(placeholder="Type a note, press Enter...", id="note-input")
-        with Horizontal(id="footer-bar"):
-            yield Button("^s Stop & Save", id="btn-footer-save")
-            yield Static("", id="footer-bar-spacer")
-            yield Button("^C Cancel", id="btn-footer-cancel")
+        with Vertical(id="app-frame"):
+            # Top bar: status + Speaker + Mic
+            with Horizontal(id="top-bar"):
+                yield Static("", id="status-text")
+                with Horizontal(id="top-bar-buttons"):
+                    yield Button("^p Speaker", id="btn-speaker")
+                    yield Button("^m Mic", id="btn-mic")
+
+            yield Static("Mic: —", id="mic-bar")
+
+            # Waveforms
+            with Vertical(id="waveform-container"):
+                yield Static("", id="waveform")
+                yield Static("Speaker", id="waveform-speaker-label")
+                yield Static("", id="waveform-speaker")
+
+            # Notes: scrollable log + input
+            with Vertical(id="notes-container"):
+
+                with ScrollableContainer(id="notes-scroll"):
+                    yield Static("", id="notes-log")
+                yield Static(
+                    "Notes are added to the transcript as footnotes.",
+                    id="notes-help",
+                )
+                yield Input(placeholder="Type a note, press Enter...", id="note-input")
+
+            # Footer
+            with Horizontal(id="footer-bar"):
+                yield Button("^s Stop & Save", id="btn-footer-save")
+                yield Static("", id="footer-bar-spacer")
+                yield Button("^C Cancel", id="btn-footer-cancel")
 
     def on_mount(self) -> None:
         try:
             self.theme = "tokyo_night"
         except Exception:
             pass
+
         self._start_recording()
         self.set_interval(0.1, self._update_display)
+
+        # Set speaker label and CSS class
         try:
             speaker_btn = self.query_one("#btn-speaker", Button)
-            speaker_btn.label = "Speaker on" if self.speaker else "Speaker"
+            speaker_btn.label = "^p Speaker ▼" if self.speaker else "^p Speaker ▶"
         except Exception:
             pass
+
+        self.set_class(self.speaker, "waveform-speaker-on")
+
         try:
             self.query_one("#note-input", Input).focus()
         except Exception:
@@ -418,20 +281,21 @@ class RecordingApp(App[str | None]):
         self.query_one("#status-text", Static).update(status)
         self.query_one("#mic-bar", Static).update(f"Mic: {dev_name}")
 
-        # Responsive waveform width: use container width with fallback so bar is always visible
-        bar_w = "100%"
-        try:
-            w = self.query_one("#waveform", Static).content_region.width
-            if w is not None and w > 2:
-                bar_w = w - 2
-        except Exception:
-            pass
+        # Waveforms
+        wave_widget = self.query_one("#waveform", Static)
+        width = wave_widget.size.width or 0
+        bar_w = width - 2 if width > 4 else 40
+
         mic_bar = self.waveform.render(bar_w)
-        self.query_one("#waveform", Static).update(f"  {mic_bar}")
+        wave_widget.update(mic_bar)
+
         if self.speaker:
             try:
-                speaker_bar = self.waveform_speaker.render(bar_w)
-                self.query_one("#waveform-speaker", Static).update(f"  {speaker_bar}")
+                speaker_widget = self.query_one("#waveform-speaker", Static)
+                s_width = speaker_widget.size.width or width
+                s_bar_w = s_width - 2 if s_width and s_width > 4 else bar_w
+                speaker_bar = self.waveform_speaker.render(s_bar_w)
+                speaker_widget.update(speaker_bar)
             except Exception:
                 pass
 
@@ -441,10 +305,7 @@ class RecordingApp(App[str | None]):
         if bid == "btn-mic":
             self.action_change_mic()
         elif bid == "btn-speaker":
-            if self.speaker:
-                self.action_remove_speaker_capture()
-            else:
-                self.action_add_speaker_capture()
+            self.action_toggle_speaker()
         elif bid == "btn-footer-save":
             self.action_stop_save()
         elif bid == "btn-footer-cancel":
@@ -469,6 +330,20 @@ class RecordingApp(App[str | None]):
             self._saved_path = path
         self.exit(self._saved_path)
 
+    def action_toggle_speaker(self) -> None:
+        """Toggle speaker capture via keyboard or button."""
+        if self.speaker:
+            self.action_remove_speaker_capture()
+        else:
+            self.action_add_speaker_capture()
+
+    def action_focus_notes(self) -> None:
+        """Focus the note input field."""
+        try:
+            self.query_one("#note-input", Input).focus()
+        except Exception:
+            pass
+
     def action_add_speaker_capture(self) -> None:
         """Enable speaker capture mid-recording (toggle on)."""
         if not self.session or self.speaker:
@@ -485,9 +360,9 @@ class RecordingApp(App[str | None]):
             self.notify(err, severity="error")
             return
         self.speaker = True
-        self.mount(Static("", id="waveform-speaker"), before=self.query_one("#notes-container"))
+        self.set_class(True, "waveform-speaker-on")
         try:
-            self.query_one("#btn-speaker", Button).label = "Speaker on"
+            self.query_one("#btn-speaker", Button).label = "^p Speaker ▼"
         except Exception:
             pass
         self.notify("Speaker capture added")
@@ -502,12 +377,9 @@ class RecordingApp(App[str | None]):
             self.session._speaker_stream = None
         self.session._restore_audio_output()
         self.speaker = False
+        self.set_class(False, "waveform-speaker-on")
         try:
-            self.query_one("#waveform-speaker", Static).remove()
-        except Exception:
-            pass
-        try:
-            self.query_one("#btn-speaker", Button).label = "Speaker"
+            self.query_one("#btn-speaker", Button).label = "^p Speaker ▶"
         except Exception:
             pass
         self.notify("Speaker capture off")
