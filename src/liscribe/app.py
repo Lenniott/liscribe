@@ -99,8 +99,8 @@ class RecordingApp(App[str | None]):
     BINDINGS = [
         Binding("ctrl+s", "stop_save", "Stop & Save", key_display="^s"),
         Binding("ctrl+c", "cancel", "Cancel", key_display="^C"),
-        Binding("ctrl+m", "change_mic", "Change mic", key_display="^m"),
-        Binding("ctrl+p", "toggle_speaker", "Toggle speaker", key_display="^p"),
+        Binding("ctrl+l", "change_mic", "Change mic", key_display="^l"),
+        Binding("ctrl+o", "toggle_speaker", "Toggle speaker", key_display="^o"),
         Binding("ctrl+n", "focus_notes", "Focus notes", key_display="^n"),
         Binding("ctrl+y", "screenshot", "Screenshot", key_display="^y"),
     ]
@@ -131,8 +131,8 @@ class RecordingApp(App[str | None]):
             with Horizontal(id="top-bar"):
                 yield Static("", id="status-text")
                 with Horizontal(id="top-bar-buttons"):
-                    yield Button("^p Speaker", id="btn-speaker")
-                    yield Button("^m Mic", id="btn-mic")
+                    yield Button("^o Speaker", id="btn-speaker")
+                    yield Button("^l Mic", id="btn-mic")
 
             yield Static("Mic: —", id="mic-bar")
 
@@ -171,7 +171,7 @@ class RecordingApp(App[str | None]):
         # Set speaker label and CSS class
         try:
             speaker_btn = self.query_one("#btn-speaker", Button)
-            speaker_btn.label = "^p Speaker ▼" if self.speaker else "^p Speaker ▶"
+            speaker_btn.label = "^o Speaker ▼" if self.speaker else "^o Speaker ▶"
         except Exception:
             pass
 
@@ -362,7 +362,7 @@ class RecordingApp(App[str | None]):
         self.speaker = True
         self.set_class(True, "waveform-speaker-on")
         try:
-            self.query_one("#btn-speaker", Button).label = "^p Speaker ▼"
+            self.query_one("#btn-speaker", Button).label = "^o Speaker ▼"
         except Exception:
             pass
         self.notify("Speaker capture added")
@@ -379,7 +379,7 @@ class RecordingApp(App[str | None]):
         self.speaker = False
         self.set_class(False, "waveform-speaker-on")
         try:
-            self.query_one("#btn-speaker", Button).label = "^p Speaker ▶"
+            self.query_one("#btn-speaker", Button).label = "^o Speaker ▶"
         except Exception:
             pass
         self.notify("Speaker capture off")
