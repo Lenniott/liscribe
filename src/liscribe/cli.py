@@ -44,10 +44,6 @@ def _preprocess_model_args():
     """Convert multi-character short options like -xxs to --tiny before Click parses."""
     if len(sys.argv) < 2:
         return
-    # #region agent log
-    DEBUG_LOG = Path(__file__).parent.parent.parent / ".cursor" / "debug-3b00e9.log"
-    original_argv = sys.argv.copy()
-    # #endregion
     new_argv = [sys.argv[0]]
     i = 1
     while i < len(sys.argv):
@@ -55,42 +51,10 @@ def _preprocess_model_args():
         if arg in _SHORT_MODEL_OPTS:
             # Replace -xxs with --tiny, etc.
             new_argv.append(_SHORT_MODEL_OPTS[arg])
-            # #region agent log
-            try:
-                import json
-                log_entry = {
-                    "sessionId": "3b00e9",
-                    "location": "cli.py:_preprocess_model_args",
-                    "message": "converted_short_opt",
-                    "data": {"from": arg, "to": _SHORT_MODEL_OPTS[arg]},
-                    "timestamp": int(time.time() * 1000),
-                }
-                DEBUG_LOG.parent.mkdir(parents=True, exist_ok=True)
-                with DEBUG_LOG.open("a", encoding="utf-8") as f:
-                    f.write(json.dumps(log_entry) + "\n")
-            except Exception:
-                pass
-            # #endregion
         else:
             new_argv.append(arg)
         i += 1
     sys.argv = new_argv
-    # #region agent log
-    try:
-        import json
-        log_entry = {
-            "sessionId": "3b00e9",
-            "location": "cli.py:_preprocess_model_args",
-            "message": "argv_preprocessed",
-            "data": {"original": original_argv, "new": new_argv},
-            "timestamp": int(time.time() * 1000),
-        }
-        DEBUG_LOG.parent.mkdir(parents=True, exist_ok=True)
-        with DEBUG_LOG.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(log_entry) + "\n")
-    except Exception:
-        pass
-    # #endregion
 
 WHISPER_MODELS = [
     ("tiny",   "~75 MB,  fastest, least accurate"),

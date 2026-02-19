@@ -21,13 +21,6 @@ import json
 import time
 from typing import Any
 
-# #region agent log
-_DEBUG_LOG = "/Users/benjamin/Desktop/Scratch/liscribe/.cursor/debug-090741.log"
-
-def _dlog(msg: str, data: dict | None = None, hypothesis_id: str | None = None, location: str = "app.py") -> None:
-    with open(_DEBUG_LOG, "a") as f:
-        f.write(json.dumps({"sessionId": "090741", "message": msg, "data": data or {}, "hypothesisId": hypothesis_id, "timestamp": int(time.time() * 1000), "location": location}) + "\n")
-# #endregion
 
 import numpy as np
 import sounddevice as sd
@@ -328,9 +321,6 @@ class RecordingApp(App[str | None]):
 
     def _start_recording(self) -> None:
         """Initialize and start the recording session."""
-        # #region agent log
-        _dlog("_start_recording entry", {"speaker": self.speaker, "mic_arg": self.mic_arg, "folder": self.folder}, "entry", "app.py:_start_recording")
-        # #endregion
         self.session = RecordingSession(
             folder=self.folder,
             speaker=self.speaker,
@@ -342,13 +332,7 @@ class RecordingApp(App[str | None]):
         # Resolve mic
         try:
             self.session.device_idx = resolve_device(self.mic_arg)
-            # #region agent log
-            _dlog("resolve_device ok", {"device_idx": self.session.device_idx}, "C", "app.py:_start_recording")
-            # #endregion
         except ValueError as exc:
-            # #region agent log
-            _dlog("resolve_device ValueError", {"exc": str(exc)}, "C", "app.py:_start_recording")
-            # #endregion
             self._exit_error_message = str(exc)
             self.notify(str(exc), severity="error")
             self.exit(None)
@@ -357,9 +341,6 @@ class RecordingApp(App[str | None]):
         # Speaker setup
         if self.speaker:
             self.session.blackhole_idx = _find_blackhole_device(self.session.blackhole_name)
-            # #region agent log
-            _dlog("blackhole lookup", {"blackhole_idx": self.session.blackhole_idx, "blackhole_name": self.session.blackhole_name}, "A", "app.py:_start_recording")
-            # #endregion
             if self.session.blackhole_idx is None:
                 self._exit_error_message = (
                     f"BlackHole '{self.session.blackhole_name}' not found. Run '{self.prog_name} setup'. "
@@ -371,9 +352,6 @@ class RecordingApp(App[str | None]):
 
             self.session._original_output = get_current_output_device()
             set_ok = set_output_device(self.session.speaker_device_name)
-            # #region agent log
-            _dlog("set_output_device", {"ok": set_ok, "speaker_device_name": self.session.speaker_device_name, "original_output": self.session._original_output}, "B", "app.py:_start_recording")
-            # #endregion
             if not set_ok:
                 self._exit_error_message = (
                     f"Could not switch to '{self.session.speaker_device_name}'. "
@@ -410,13 +388,7 @@ class RecordingApp(App[str | None]):
             self.session._mic_stream = self.session._open_mic_stream(self.session.device_idx)
             if self.speaker and self.session.blackhole_idx is not None:
                 self.session._speaker_stream = self.session._open_speaker_stream(self.session.blackhole_idx)
-            # #region agent log
-            _dlog("streams opened ok", {}, "D", "app.py:_start_recording")
-            # #endregion
         except Exception as exc:
-            # #region agent log
-            _dlog("stream open exception", {"exc": str(exc), "exc_type": type(exc).__name__}, "D", "app.py:_start_recording")
-            # #endregion
             self._exit_error_message = f"Error starting recording: {exc}"
             self.notify(self._exit_error_message, severity="error")
             self.session._restore_audio_output()
@@ -563,9 +535,6 @@ class RecordingApp(App[str | None]):
 
     def _do_cancel(self) -> None:
         """Stop recording and exit without saving."""
-        # #region agent log
-        _dlog("_do_cancel called", {"has_session": self.session is not None}, "E", "app.py:_do_cancel")
-        # #endregion
         if self.session:
             for stream in (self.session._mic_stream, self.session._speaker_stream):
                 if stream is not None:

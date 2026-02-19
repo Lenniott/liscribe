@@ -170,9 +170,6 @@ WHISPER_DESCS=(
 
 echo ""
 echo "  Available whisper models:"
-# #region agent log
-DEBUG_LOG="$SCRIPT_DIR/.cursor/debug-3b00e9.log"
-# #endregion
 for i in "${!WHISPER_MODELS[@]}"; do
     model_name="${WHISPER_MODELS[$i]}"
     installed_marker=""
@@ -189,9 +186,6 @@ sorted_indices=()
 while true; do
     read -rp "  Models to download (default: $default_model): " model_choice
     model_choice="${model_choice:-$default_model}"
-    # #region agent log
-    echo "{\"sessionId\":\"3b00e9\",\"location\":\"install.sh:model_choice\",\"message\":\"model_choice\",\"data\":{\"raw\":\"$model_choice\"},\"timestamp\":$(date +%s)000}" >> "${DEBUG_LOG}" 2>/dev/null || true
-    # #endregion
     
     # Parse "1,3,5", "1 3 5", "2-4", "all"
     indices=()
@@ -242,9 +236,6 @@ while true; do
         else
             sorted_indices=()
         fi
-        # #region agent log
-        echo "{\"sessionId\":\"3b00e9\",\"location\":\"install.sh:parsed\",\"message\":\"parsed_indices\",\"data\":{\"sorted\":\"${sorted_indices[*]}\",\"count\":${#sorted_indices[@]}},\"timestamp\":$(date +%s)000}" >> "${DEBUG_LOG}" 2>/dev/null || true
-        # #endregion
         if (( ${#sorted_indices[@]} > 0 )); then
             break
         fi
@@ -261,9 +252,6 @@ done
 
 # Prompt for default model
 default_idx=$default_model
-# #region agent log
-echo "{\"sessionId\":\"3b00e9\",\"location\":\"install.sh:default_check\",\"message\":\"default_model_check\",\"data\":{\"default_idx\":$default_idx,\"sorted_indices\":\"${sorted_indices[*]}\"},\"timestamp\":$(date +%s)000}" >> "${DEBUG_LOG}" 2>/dev/null || true
-# #endregion
 # Check if default is in selection (Bash 3.2 compatible)
 default_in_selection=0
 for idx in "${sorted_indices[@]}"; do
@@ -275,9 +263,6 @@ done
 if [[ $default_in_selection -eq 1 ]]; then
     # Default is in the selection, use it
     chosen_model="${WHISPER_MODELS[$((default_idx-1))]}"
-    # #region agent log
-    echo "{\"sessionId\":\"3b00e9\",\"location\":\"install.sh:default_set\",\"message\":\"default_model_set\",\"data\":{\"chosen\":\"$chosen_model\"},\"timestamp\":$(date +%s)000}" >> "${DEBUG_LOG}" 2>/dev/null || true
-    # #endregion
 else
     # Default not in selection, prompt
     echo ""
