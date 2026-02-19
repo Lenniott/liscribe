@@ -8,10 +8,9 @@ import time
 import wave
 from pathlib import Path
 
-# Marker line in shell rc for liscribe alias (must match install.sh)
-ALIAS_MARKER = "# liscribe"
-
 import click
+
+from liscribe.shell_alias import ALIAS_MARKER, get_shell_rc_path as _get_shell_rc_path, update_shell_alias as _update_shell_alias
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -311,6 +310,25 @@ def _run_transcription_pipeline(
 # Main command group
 # ---------------------------------------------------------------------------
 
+def _launch_tui(
+    land_on: str = "home",
+    folder: str | None = None,
+    speaker: bool = False,
+    mic: str | None = None,
+    prog_name: str = "rec",
+) -> None:
+    """Launch the Textual TUI app and run until quit."""
+    from liscribe.app import LiscribeApp
+    app = LiscribeApp(
+        land_on=land_on,
+        folder=folder,
+        speaker=speaker,
+        mic=mic,
+        prog_name=prog_name or "rec",
+    )
+    app.run()
+
+
 @click.group(invoke_without_command=True)
 @click.option(
     "-f", "--folder",
@@ -325,7 +343,8 @@ def _run_transcription_pipeline(
     help="Save to ./docs/transcripts in current directory.",
 )
 @click.option(
-    "-s", "--speaker",
+    "-o", "--output",
+    "speaker",
     is_flag=True,
     default=False,
     help="Also record system audio (requires BlackHole + Multi-Output Device).",
@@ -335,6 +354,12 @@ def _run_transcription_pipeline(
     type=str,
     default=None,
     help="Input device name or index to use for recording.",
+)
+@click.option(
+    "-s", "--start",
+    is_flag=True,
+    default=False,
+    help="Go straight to Record screen (skip Home).",
 )
 @click.option("--debug", is_flag=True, default=False, help="Enable debug logging.")
 @_model_options
@@ -346,6 +371,7 @@ def main(
     here: bool,
     speaker: bool,
     mic: str | None,
+    start: bool,
     debug: bool,
     model_tiny: bool,
     model_base: bool,
@@ -367,46 +393,19 @@ def main(
     if ctx.invoked_subcommand is not None:
         return
 
-    # -- Resolve save folder --
-    folder = _resolve_folder(folder, here)
-    ctx.obj["folder"] = folder
-    resolved = Path(folder).expanduser().resolve()
-    resolved.mkdir(parents=True, exist_ok=True)
-    console.print(f"  [dim]Saving to {resolved}[/dim]")
-
-    # -- Record via TUI --
-    from liscribe.app import RecordingApp
-
-    app = RecordingApp(folder=folder, speaker=speaker, mic=mic, prog_name=ctx.info_name)
-    wav_path = app.run()
-
-    if not wav_path:
-        exit_msg = getattr(app, "_exit_error_message", None)
-        if exit_msg:
-            console.print(f"  [red]{exit_msg}[/red]")
-        else:
-            console.print("  Recording cancelled.")
-        return
-
-    console.print(f"  [green]Audio saved[/green]   {Path(wav_path).name}")
-    timestamped_notes = app.notes
-
-    # -- Determine models --
-    models = ctx.obj["models_selected"]
-    if not models:
-        cfg = load_config()
-        models = [cfg.get("whisper_model", "base")]
-
-    console.print()
-    _run_transcription_pipeline(
-        audio_path=wav_path,
-        models=models,
-        notes=timestamped_notes if timestamped_notes else None,
-        mic_name=mic or "system default",
-        speaker_mode=speaker,
-        ctx=ctx,
+    # -- Launch TUI: Home or Record (when --start) --
+    land_on = "record" if start else "home"
+    resolved_folder: str | None = None
+    if land_on == "record":
+        resolved_folder = _resolve_folder(folder, here)
+        Path(resolved_folder).expanduser().resolve().mkdir(parents=True, exist_ok=True)
+    _launch_tui(
+        land_on=land_on,
+        folder=resolved_folder,
+        speaker=speaker,
+        mic=mic,
+        prog_name=ctx.info_name or "rec",
     )
-    console.print(f"  [dim]Tip: [bold]{_get_command_name(ctx)} t <file>[/bold] transcribes a file; use [bold]-sm[/bold], [bold]-md[/bold] etc. for other models.[/dim]")
 
 
 # ---------------------------------------------------------------------------
@@ -463,43 +462,6 @@ main.add_command(transcribe_cmd, "t")
 # ---------------------------------------------------------------------------
 # setup subcommand
 # ---------------------------------------------------------------------------
-
-def _get_shell_rc_path() -> Path:
-    """Path to the current shell's rc file (e.g. ~/.zshrc)."""
-    shell = os.path.basename(os.environ.get("SHELL", "/bin/zsh"))
-    if shell == "zsh":
-        return Path.home() / ".zshrc"
-    if shell == "bash":
-        return Path.home() / ".bashrc"
-    return Path.home() / f".{shell}rc"
-
-
-def _update_shell_alias(alias_name: str) -> Path | None:
-    """Update shell rc so the given alias runs liscribe. Remove old liscribe alias, add new one.
-    Returns the rc path if the file was updated, None otherwise.
-    """
-    rc = _get_shell_rc_path()
-    # Path to the rec binary (same bin dir as current interpreter)
-    rec_path = Path(sys.executable).parent / "rec"
-    if not rec_path.exists():
-        rec_path = Path(sys.executable).parent / "rec.exe"
-    if not rec_path.exists():
-        return None
-    alias_line = f"alias {alias_name}='{rec_path}'  {ALIAS_MARKER}\n"
-    try:
-        if rc.exists():
-            lines = rc.read_text(encoding="utf-8").splitlines(keepends=True)
-        else:
-            lines = []
-        new_lines = [line for line in lines if ALIAS_MARKER not in line]
-        prefix = "\n" if new_lines else ""
-        new_lines.append(prefix + alias_line)
-        rc.parent.mkdir(parents=True, exist_ok=True)
-        rc.write_text("".join(new_lines).rstrip() + "\n", encoding="utf-8")
-        return rc
-    except (OSError, IOError):
-        return None
-
 
 def _setup_configure_only(cfg: dict) -> None:
     """Prompt for default model, language, and command alias; save config. No model download."""
@@ -688,33 +650,34 @@ def config(ctx: click.Context, show: bool) -> None:
 
 
 # ---------------------------------------------------------------------------
-# devices subcommand
+# preferences / help / devices — launch TUI on that screen
 # ---------------------------------------------------------------------------
 
 @main.command()
 @click.pass_context
-def devices(ctx: click.Context) -> None:
-    """List available audio input devices."""
-    try:
-        import sounddevice as sd
-    except OSError:
-        cmd_name = _get_command_name(ctx)
-        console.print(
-            f"  [red]Error:[/red] PortAudio not found. "
-            f"Run [bold]'{cmd_name} setup'[/bold] for instructions."
-        )
-        sys.exit(1)
+def preferences(ctx: click.Context) -> None:
+    """Open Preferences in the TUI."""
+    _launch_tui(land_on="preferences", prog_name=_get_command_name(ctx))
 
-    devs = sd.query_devices()
-    console.print("  Available input devices:\n")
-    for i, d in enumerate(devs):
-        if d["max_input_channels"] > 0:
-            default_marker = " [dim](default)[/dim]" if i == sd.default.device[0] else ""
-            console.print(
-                f"    [{i}] [bold]{d['name']}[/bold]"
-                f"  ({d['max_input_channels']}ch, {int(d['default_samplerate'])}Hz)"
-                f"{default_marker}"
-            )
+
+@main.command(name="help")
+@click.pass_context
+def help_cmd(ctx: click.Context) -> None:
+    """Open Help in the TUI."""
+    _launch_tui(land_on="help", prog_name=_get_command_name(ctx))
+
+
+@main.command()
+@click.pass_context
+def devices(ctx: click.Context) -> None:
+    """List available audio input devices (in TUI)."""
+    _launch_tui(land_on="devices", prog_name=_get_command_name(ctx))
+
+
+def get_help_text(prog_name: str = "rec") -> str:
+    """Return the same help text as rec --help (for Help TUI screen)."""
+    ctx = click.Context(main, info_name=prog_name)
+    return ctx.get_help()
 
 
 # Wrapper for entry point scripts (converts -xxs to --tiny before Click parses)

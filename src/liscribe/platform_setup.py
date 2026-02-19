@@ -130,3 +130,37 @@ def run_all_checks(include_speaker: bool = False) -> list[tuple[str, bool, str]]
         results.append(("Multi-Output Device", ok, msg))
 
     return results
+
+
+# Map check name to brew install command (for TUI Install button)
+_BREW_INSTALL: dict[str, list[str]] = {
+    "PortAudio": ["brew", "install", "portaudio"],
+    "BlackHole": ["brew", "install", "--cask", "blackhole-2ch"],
+    "switchaudio-osx": ["brew", "install", "switchaudio-osx"],
+    # Multi-Output Device: no brew, user creates in Audio MIDI Setup
+}
+
+
+def get_install_command(check_name: str) -> list[str] | None:
+    """Return the brew install command for a check, or None if not installable via brew."""
+    return _BREW_INSTALL.get(check_name)
+
+
+def run_install(check_name: str) -> tuple[bool, str]:
+    """Run the install command for the given check. Returns (success, output_or_error)."""
+    cmd = get_install_command(check_name)
+    if not cmd:
+        return False, "No install command (e.g. create Multi-Output Device in Audio MIDI Setup)."
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        out = (result.stdout or "").strip() + "\n" + (result.stderr or "").strip()
+        return result.returncode == 0, out or "(no output)"
+    except subprocess.TimeoutExpired:
+        return False, "Install timed out."
+    except Exception as exc:
+        return False, str(exc)

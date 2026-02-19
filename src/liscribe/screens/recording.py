@@ -1,49 +1,35 @@
+"""Recording screen — waveform, mic, notes, stop/save. Returns (wav_path, notes) or None."""
+
 from __future__ import annotations
 
-import json
 import time
 from typing import Any
 
 import numpy as np
 import sounddevice as sd
-from textual import work
-from textual.app import App, ComposeResult
-from textual.containers import Vertical, Horizontal, ScrollableContainer
+from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import Screen
-from textual.widgets import Static, Input, Button
+from textual.widgets import Button, Input, Static
 
 from liscribe.config import load_config
+from liscribe.screens.base import RECORDING_BINDINGS
 from liscribe.notes import Note, NoteCollection
 from liscribe.platform_setup import get_current_output_device, set_output_device
 from liscribe.recorder import (
     RecordingSession,
+    _find_blackhole_device,
     list_input_devices,
     resolve_device,
-    _find_blackhole_device,
 )
-from liscribe.screens.home import (
-    HomePreferencesRequest,
-    HomeRecordRequest,
-    HomeScreen,
-    HomeTranscriptsRequest,
-)
-from liscribe.screens.devices_screen import DevicesScreen
-from liscribe.screens.help_screen import HelpScreen
-from liscribe.screens.preferences import PreferencesHubScreen
-from liscribe.screens.transcripts import TranscriptsScreen
 from liscribe.screens.modals import ConfirmCancelScreen, MicSelectScreen
-from liscribe.screens.recording import RecordingResult, RecordingScreen
-from liscribe.screens.transcribing import TranscribingScreen
-from liscribe.screens.base import RECORDING_BINDINGS
 from liscribe.waveform import WaveformMonitor
 
+# Result when user saves: (wav_path, notes); when cancel: None
+RecordingResult = tuple[str, list[Note]] | None
 
-class RecordingApp(App[str | None]):
-    """Main recording TUI application."""
 
-    ENABLE_COMMAND_PALETTE = False
-
-    CSS_PATH = "rec.css"
+class RecordingScreen(Screen[RecordingResult]):
+    """Recording TUI. Dismisses with (wav_path, notes) on save or None if cancelled."""
 
     BINDINGS = RECORDING_BINDINGS
 
@@ -53,8 +39,9 @@ class RecordingApp(App[str | None]):
         speaker: bool = False,
         mic: str | None = None,
         prog_name: str = "rec",
-    ):
-        super().__init__()
+        **kwargs,
+    ) -> None:
+        super().__init__(**kwargs)
         self.folder = folder
         self.speaker = speaker
         self.mic_arg = mic
@@ -64,12 +51,10 @@ class RecordingApp(App[str | None]):
         self.waveform_speaker = WaveformMonitor()
         self._note_collection = NoteCollection()
         self._start_time: float = 0.0
-        self._saved_path: str | None = None
         self._exit_error_message: str | None = None
 
-    def compose(self) -> ComposeResult:
+    def compose(self):
         with Vertical(id="app-frame"):
-            # Top bar: status + Speaker + Mic
             with Horizontal(id="top-bar"):
                 yield Static("", id="status-text")
                 with Horizontal(id="top-bar-buttons"):
@@ -78,15 +63,12 @@ class RecordingApp(App[str | None]):
 
             yield Static("Mic: —", id="mic-bar")
 
-            # Waveforms
             with Vertical(id="waveform-container"):
                 yield Static("", id="waveform")
                 yield Static("Speaker", id="waveform-speaker-label")
                 yield Static("", id="waveform-speaker")
 
-            # Notes: scrollable log + input
             with Vertical(id="notes-container"):
-
                 with ScrollableContainer(id="notes-scroll"):
                     yield Static("", id="notes-log")
                 yield Static(
@@ -95,7 +77,6 @@ class RecordingApp(App[str | None]):
                 )
                 yield Input(placeholder="Type a note, press Enter...", id="note-input")
 
-            # Footer
             with Horizontal(id="footer-bar"):
                 yield Button("^s Stop & Save", id="btn-footer-save")
                 yield Static("", id="footer-bar-spacer")
@@ -110,7 +91,6 @@ class RecordingApp(App[str | None]):
         self._start_recording()
         self.set_interval(0.1, self._update_display)
 
-        # Set speaker label and CSS class
         try:
             speaker_btn = self.query_one("#btn-speaker", Button)
             speaker_btn.label = "^o Speaker ▼" if self.speaker else "^o Speaker ▶"
@@ -134,16 +114,14 @@ class RecordingApp(App[str | None]):
 
         cfg = load_config()
 
-        # Resolve mic
         try:
             self.session.device_idx = resolve_device(self.mic_arg)
         except ValueError as exc:
             self._exit_error_message = str(exc)
             self.notify(str(exc), severity="error")
-            self.exit(None)
+            self.dismiss(None)
             return
 
-        # Speaker setup
         if self.speaker:
             self.session.blackhole_idx = _find_blackhole_device(self.session.blackhole_name)
             if self.session.blackhole_idx is None:
@@ -152,7 +130,7 @@ class RecordingApp(App[str | None]):
                     "See README: BlackHole Setup."
                 )
                 self.notify(self._exit_error_message, severity="error")
-                self.exit(None)
+                self.dismiss(None)
                 return
 
             self.session._original_output = get_current_output_device()
@@ -160,17 +138,12 @@ class RecordingApp(App[str | None]):
             if not set_ok:
                 self._exit_error_message = (
                     f"Could not switch to '{self.session.speaker_device_name}'. "
-                    f"Run '{self.prog_name} setup'. List output devices: SwitchAudioSource -a -t output. "
-                    "See README: BlackHole Setup."
+                    f"Run '{self.prog_name} setup'. See README: BlackHole Setup."
                 )
-                self.notify(
-                    f"Could not switch to '{self.session.speaker_device_name}'. Run '{self.prog_name} setup'. See README: BlackHole Setup.",
-                    severity="error",
-                )
-                self.exit(None)
+                self.notify(self._exit_error_message, severity="error")
+                self.dismiss(None)
                 return
 
-        # Patch callbacks to also feed waveform
         original_mic_cb = self.session._mic_callback
 
         def patched_mic_cb(indata: np.ndarray, frames: int, time_info: Any, status: sd.CallbackFlags) -> None:
@@ -188,7 +161,6 @@ class RecordingApp(App[str | None]):
 
             self.session._speaker_callback = patched_speaker_cb
 
-        # Start streams
         try:
             self.session._mic_stream = self.session._open_mic_stream(self.session.device_idx)
             if self.speaker and self.session.blackhole_idx is not None:
@@ -197,7 +169,7 @@ class RecordingApp(App[str | None]):
             self._exit_error_message = f"Error starting recording: {exc}"
             self.notify(self._exit_error_message, severity="error")
             self.session._restore_audio_output()
-            self.exit(None)
+            self.dismiss(None)
             return
 
         self._start_time = time.time()
@@ -210,7 +182,6 @@ class RecordingApp(App[str | None]):
         mins, secs = divmod(int(elapsed), 60)
         hrs, mins = divmod(mins, 60)
 
-        # Device name
         if self.session and self.session.device_idx is not None:
             dev_info = sd.query_devices(self.session.device_idx)
             dev_name = dev_info["name"]
@@ -223,7 +194,6 @@ class RecordingApp(App[str | None]):
         self.query_one("#status-text", Static).update(status)
         self.query_one("#mic-bar", Static).update(f"Mic: {dev_name}")
 
-        # Waveforms
         wave_widget = self.query_one("#waveform", Static)
         width = wave_widget.size.width or 0
         bar_w = width - 2 if width > 4 else 40
@@ -242,7 +212,6 @@ class RecordingApp(App[str | None]):
                 pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle top-bar and footer button actions."""
         bid = event.button.id
         if bid == "btn-mic":
             self.action_change_mic()
@@ -254,7 +223,6 @@ class RecordingApp(App[str | None]):
             self.action_cancel()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Handle note submission."""
         text = event.value.strip()
         if not text:
             return
@@ -266,28 +234,25 @@ class RecordingApp(App[str | None]):
         event.input.value = ""
 
     def action_stop_save(self) -> None:
-        """Stop recording and save."""
         if self.session:
             path = self.session._stop_and_save()
-            self._saved_path = path
-        self.exit(self._saved_path)
+            self.dismiss((path, self._note_collection.notes))
+        else:
+            self.dismiss(None)
 
     def action_toggle_speaker(self) -> None:
-        """Toggle speaker capture via keyboard or button."""
         if self.speaker:
             self.action_remove_speaker_capture()
         else:
             self.action_add_speaker_capture()
 
     def action_focus_notes(self) -> None:
-        """Focus the note input field."""
         try:
             self.query_one("#note-input", Input).focus()
         except Exception:
             pass
 
     def action_add_speaker_capture(self) -> None:
-        """Enable speaker capture mid-recording (toggle on)."""
         if not self.session or self.speaker:
             return
         original_speaker_cb = self.session._speaker_callback
@@ -310,7 +275,6 @@ class RecordingApp(App[str | None]):
         self.notify("Speaker capture added")
 
     def action_remove_speaker_capture(self) -> None:
-        """Disable speaker capture mid-recording (toggle off)."""
         if not self.session or not self.speaker:
             return
         if self.session._speaker_stream is not None:
@@ -327,9 +291,8 @@ class RecordingApp(App[str | None]):
         self.notify("Speaker capture off")
 
     def action_change_mic(self) -> None:
-        """Open mic selector."""
         current = self.session.device_idx if self.session else None
-        self.push_screen(MicSelectScreen(current), self._on_mic_selected)
+        self.app.push_screen(MicSelectScreen(current), self._on_mic_selected)
 
     def _on_mic_selected(self, device_idx: int | None) -> None:
         if device_idx is not None and self.session:
@@ -340,15 +303,13 @@ class RecordingApp(App[str | None]):
             self.notify("Mic unchanged")
 
     def action_cancel(self) -> None:
-        """Show confirmation modal; if user confirms, discard recording without saving."""
-        self.push_screen(ConfirmCancelScreen(), self._on_cancel_confirmed)
+        self.app.push_screen(ConfirmCancelScreen(), self._on_cancel_confirmed)
 
     def _on_cancel_confirmed(self, confirmed: bool) -> None:
         if confirmed:
             self._do_cancel()
 
     def _do_cancel(self) -> None:
-        """Stop recording and exit without saving."""
         if self.session:
             for stream in (self.session._mic_stream, self.session._speaker_stream):
                 if stream is not None:
@@ -357,103 +318,4 @@ class RecordingApp(App[str | None]):
             self.session._mic_stream = None
             self.session._speaker_stream = None
             self.session._restore_audio_output()
-        self.exit(None)
-
-    @property
-    def notes(self) -> list[Note]:
-        return self._note_collection.notes
-
-
-# ---------------------------------------------------------------------------
-# Shell app (Home + Record + Preferences/Transcripts/Help/Devices)
-# ---------------------------------------------------------------------------
-
-
-class LiscribeApp(App[None]):
-    """TUI shell: Home, Record, Preferences, Transcripts, Help, Devices. CLI launches this."""
-
-    ENABLE_COMMAND_PALETTE = False
-    CSS_PATH = "rec.css"
-
-    def __init__(
-        self,
-        land_on: str = "home",
-        folder: str | None = None,
-        speaker: bool = False,
-        mic: str | None = None,
-        prog_name: str = "rec",
-    ) -> None:
-        super().__init__()
-        self._land_on = land_on
-        self._folder = folder
-        self._speaker = speaker
-        self._mic = mic
-        self._prog_name = prog_name
-
-    def on_mount(self) -> None:
-        try:
-            self.theme = "tokyo_night"
-        except Exception:
-            pass
-        if self._land_on == "record" and self._folder:
-            self.push_screen(
-                RecordingScreen(
-                    folder=self._folder,
-                    speaker=self._speaker,
-                    mic=self._mic,
-                    prog_name=self._prog_name,
-                ),
-                self._on_recording_done,
-            )
-        elif self._land_on == "preferences":
-            self.push_screen(PreferencesHubScreen())
-        elif self._land_on == "help":
-            self.push_screen(HelpScreen())
-        elif self._land_on == "devices":
-            self.push_screen(DevicesScreen())
-        else:
-            self.push_screen(HomeScreen())
-
-    def _on_recording_done(self, result: RecordingResult) -> None:
-        """After Recording screen dismisses: show Transcribing then Home, or just Home if cancelled."""
-        if result is None:
-            self.push_screen(HomeScreen())
-            return
-        wav_path, notes = result
-        from pathlib import Path
-        output_dir = self._folder or str(Path(wav_path).parent)
-        self.push_screen(
-            TranscribingScreen(
-                wav_path=wav_path,
-                notes=notes,
-                output_dir=output_dir,
-                speaker_mode=self._speaker,
-            ),
-            self._on_transcribing_done,
-        )
-
-    def _on_transcribing_done(self, _: None) -> None:
-        self.push_screen(HomeScreen())
-
-    def on_home_record_request(self, _: HomeRecordRequest) -> None:
-        folder = self._folder
-        if not folder:
-            cfg = load_config()
-            folder = cfg.get("save_folder", "~/transcripts")
-        from pathlib import Path
-        Path(folder).expanduser().resolve().mkdir(parents=True, exist_ok=True)
-        self.push_screen(
-            RecordingScreen(
-                folder=folder,
-                speaker=self._speaker,
-                mic=self._mic,
-                prog_name=self._prog_name,
-            ),
-            self._on_recording_done,
-        )
-
-    def on_home_preferences_request(self, _: HomePreferencesRequest) -> None:
-        self.push_screen(PreferencesHubScreen())
-
-    def on_home_transcripts_request(self, _: HomeTranscriptsRequest) -> None:
-        self.push_screen(TranscriptsScreen())
+        self.dismiss(None)
