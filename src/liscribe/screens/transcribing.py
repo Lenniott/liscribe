@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 from textual import events
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Static
@@ -23,6 +24,11 @@ from liscribe.transcriber import is_model_available
 
 class TranscribingScreen(Screen[None]):
     """Run transcription on the saved WAV in a subprocess (avoids fds_to_keep in TUI), then Done and Back to Home."""
+
+    BINDINGS = [
+        Binding("escape", "back", "Back"),
+        Binding("ctrl+c", "back", "Back", key_display="^c", priority=True),
+    ]
 
     def __init__(
         self,
@@ -64,8 +70,8 @@ class TranscribingScreen(Screen[None]):
                 yield Static("", classes="spacer")
             with Horizontal(id="transcribing-footer", classes="screen-body-footer"):
                 yield Button("Open transcript", id="btn-open-transcript", classes="btn primary inline hug-row", disabled=True)
-                yield Static("", classes="row-spacer")
-                yield Button("esc Back to home", id="btn-back", classes="btn secondary inline hug-row", disabled=True)
+                yield Static("", classes="spacer-row")
+                yield Button("^c Back to home", id="btn-back", classes="btn secondary inline hug-row", disabled=True)
 
     def on_mount(self) -> None:
         self._render_progress()
@@ -242,7 +248,7 @@ class TranscribingScreen(Screen[None]):
     def _guess_open_command(app_value: str, transcript_path: Path) -> list[str]:
         app = (app_value or "").strip()
         if not app:
-            app = "code"
+            app = "cursor"
         if app.lower() in {"default", "system"}:
             if sys.platform == "darwin":
                 return ["open", str(transcript_path)]
@@ -270,7 +276,7 @@ class TranscribingScreen(Screen[None]):
             return
 
         cfg = load_config()
-        app_value = str(cfg.get("open_transcript_app", "code") or "code")
+        app_value = str(cfg.get("open_transcript_app", "cursor") or "cursor")
         try:
             cmd = self._guess_open_command(app_value, transcript_path)
         except ValueError:
@@ -288,4 +294,10 @@ class TranscribingScreen(Screen[None]):
         if event.button.id == "btn-open-transcript":
             self._open_transcript()
         elif event.button.id == "btn-back":
-            self.dismiss(None)
+            self.action_back()
+
+    def action_back(self) -> None:
+        if not self._done:
+            self.notify("Transcription is still running.", severity="warning")
+            return
+        self.dismiss(None)

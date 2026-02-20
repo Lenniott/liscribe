@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import math
 import re
+import shutil
 import tempfile
 import time
 from difflib import SequenceMatcher
@@ -67,16 +68,32 @@ def get_model_path() -> Path:
     return Path.home() / ".cache" / "liscribe" / "models"
 
 
+def get_model_cache_dir(model_size: str) -> Path:
+    """Return cache directory for a specific model repo."""
+    repo_id = MODEL_REPO_IDS.get(model_size, f"Systran/faster-whisper-{model_size}")
+    return get_model_path() / f"models--{repo_id.replace('/', '--')}"
+
+
 def is_model_available(model_size: str) -> bool:
     """Check whether a model is already downloaded (no network access)."""
-    cache_dir = get_model_path()
-    repo_id = MODEL_REPO_IDS.get(model_size, f"Systran/faster-whisper-{model_size}")
-    model_dir = cache_dir / f"models--{repo_id.replace('/', '--')}"
+    model_dir = get_model_cache_dir(model_size)
     if model_dir.is_dir():
         snapshots = model_dir / "snapshots"
         if snapshots.is_dir():
             return any(snapshots.iterdir())
     return False
+
+
+def remove_model(model_size: str) -> tuple[bool, str]:
+    """Remove a downloaded model from local cache."""
+    model_dir = get_model_cache_dir(model_size)
+    if not model_dir.exists():
+        return False, f"Model not installed: {model_size}"
+    try:
+        shutil.rmtree(model_dir)
+        return True, f"Removed model: {model_size}"
+    except Exception as exc:
+        return False, f"Could not remove {model_size}: {exc}"
 
 
 def load_model(model_size: str | None = None):

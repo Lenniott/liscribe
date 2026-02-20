@@ -21,6 +21,7 @@ class PrefsAliasScreen(BackScreen):
                 yield Static("liscribe", classes="brand")
                 yield Static("Alias", classes="top-bar-section")
             with Vertical(classes="screen-body"):
+                yield Static("", classes="spacer")
                 yield Static("Command alias (used in help and shell):")
                 yield Input(value=alias, id="alias-input", placeholder="rec")
                 yield Static(f"Updates {get_shell_rc_path()} when you save.", classes="screen-body-subtitle")

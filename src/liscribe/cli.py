@@ -106,13 +106,15 @@ def _collect_models(model_tiny, model_base, model_small, model_medium, model_lar
 def _resolve_folder(folder: str | None, here: bool) -> str:
     """Determine save folder from flags and config.
 
-    Priority: -f > --here > config save_folder > ~/transcripts
+    Priority: -f > --here > config record_here_by_default > config save_folder > ~/transcripts
     """
     if folder:
         return folder
     if here:
         return str(Path.cwd() / "docs" / "transcripts")
     cfg = load_config()
+    if bool(cfg.get("record_here_by_default", False)):
+        return str(Path.cwd() / "docs" / "transcripts")
     return cfg.get("save_folder", "~/transcripts")
 
 

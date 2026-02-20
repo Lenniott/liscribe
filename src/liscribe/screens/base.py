@@ -17,11 +17,14 @@ def render_brand() -> str:
         return "liscribe"
 
 
-BACK_BINDINGS = [Binding("escape", "back", "Back")]
+BACK_BINDINGS = [
+    Binding("escape", "back", "Back"),
+    Binding("ctrl+c", "back", "Back", key_display="^c", priority=True),
+]
 
 RECORDING_BINDINGS = [
     Binding("ctrl+s", "stop_save", "Stop & Save", key_display="^s"),
-    Binding("ctrl+c", "cancel", "Cancel", key_display="^C"),
+    Binding("ctrl+c", "cancel", "Cancel", key_display="^c", priority=True),
     Binding("ctrl+l", "change_mic", "Change mic", key_display="^l"),
     Binding("ctrl+o", "toggle_speaker", "Toggle speaker", key_display="^o"),
     Binding("ctrl+n", "focus_notes", "Focus notes", key_display="^n"),

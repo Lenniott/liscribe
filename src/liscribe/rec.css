@@ -73,6 +73,7 @@ Screen {
 
 .tagline {
     color: $text-muted;
+    align: center middle;
 }
 
 .version,
@@ -82,17 +83,29 @@ Screen {
 }
 
 .screen-body-footer {
+    dock: bottom;
+    background: $surface;
     width: 100%;
     height:1;
     align: center top;
     padding: 0 1;
+
 }
 
 .row {
-    width: 100%;
-    height: 1;
+    width: 1fr;
+    height: auto;
     align: left middle;
     padding: 0 1;
+    background: $primary;
+    align: left middle;
+}
+
+.center {
+    width: 100%;
+    height: auto;
+    align: center middle;
+    text-align: center;
 }
 
 .row Button {
@@ -103,6 +116,13 @@ Screen {
 
 .hug-row {
     width: 1fr;
+}
+
+.input-inline {
+    width: 1fr;
+    height: auto;
+    border: solid $secondary;
+    padding: 0 0;
 }
 
 #status-text {
@@ -316,10 +336,11 @@ ModalScreen {
 
 /* Shared full-width screens (Home, Preferences, Transcripts, Help, Devices, Transcribing, prefs) */
 
+
 .screen-frame {
     width: 100%;
     height: 100%;
-    min-height: 16;
+    min-height: 20;
     border: round $accent;
     padding: 0 0;
     background: $surface;
@@ -328,11 +349,10 @@ ModalScreen {
 .screen-body {
     width: 100%;
     height: 1fr;
-    overflow: none;
-    overflow-y: auto;
-    overflow-x: hidden;
+    min-height: 6;
     align: center top;
     padding: 0 1;
+    margin-bottom: 2;
 }
 
 .screen-body-title {
@@ -418,11 +438,70 @@ ModalScreen {
     min-width: 20;
 }
 
+.model-row {
+    width: 100%;
+    height: 1;
+    align: left middle;
+}
+
+.model-header-row {
+    color: $text-muted;
+    padding: 0 1;
+}
+
+.model-col-mark {
+    width: 3;
+    content-align: center middle;
+    text-align: center;
+}
+
+.model-col-model {
+    width: 18;
+}
+
+.btn.inline.model-col-model {
+    width: 18;
+    content-align: left middle;
+    text-align: left;
+}
+
+.model-col-action {
+    width: 12;
+}
+
+.btn.inline.model-col-action {
+    width: 12;
+    content-align: left middle;
+    text-align: left;
+}
+
+.prefs-language-row {
+    width: 100%;
+    height: auto;
+    min-height: 3;
+    align: left middle;
+    padding: 0 1;
+}
+
+.margin-small {
+    margin-bottom: 1;
+}
+
+#language-input {
+    width: 1fr;
+    min-width: 20;
+    border: solid $secondary;
+}
+
+#language-input:focus {
+    border: solid $primary;
+}
+
 .spacer {
     height: 1fr;
 }
 
-.row-spacer {
+.spacer-row {
     width: 1fr;
     min-width: 1;
 }
@@ -448,7 +527,7 @@ ModalScreen {
     background: $primary;
     width: 100%;
     min-width: 10;
-    max-width: 50%;
+    max-width: 100%;
 }
 
 .btn:hover.primary {
@@ -486,4 +565,13 @@ ModalScreen {
     color: $text-muted;
     border: solid $secondary;
     text-style: none;
+}
+
+#btn-save-lang {
+    background: $primary;
+    color: $text;
+}
+
+#btn-save-lang:hover {
+    background: $secondary;
 }

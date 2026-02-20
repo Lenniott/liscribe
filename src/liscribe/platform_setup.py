@@ -140,10 +140,21 @@ _BREW_INSTALL: dict[str, list[str]] = {
     # Multi-Output Device: no brew, user creates in Audio MIDI Setup
 }
 
+_BREW_REMOVE: dict[str, list[str]] = {
+    "PortAudio": ["brew", "uninstall", "portaudio"],
+    "BlackHole": ["brew", "uninstall", "--cask", "blackhole-2ch"],
+    "switchaudio-osx": ["brew", "uninstall", "switchaudio-osx"],
+}
+
 
 def get_install_command(check_name: str) -> list[str] | None:
     """Return the brew install command for a check, or None if not installable via brew."""
     return _BREW_INSTALL.get(check_name)
+
+
+def get_remove_command(check_name: str) -> list[str] | None:
+    """Return the brew uninstall command for a check, or None if not removable via brew."""
+    return _BREW_REMOVE.get(check_name)
 
 
 def run_install(check_name: str) -> tuple[bool, str]:
@@ -162,5 +173,25 @@ def run_install(check_name: str) -> tuple[bool, str]:
         return result.returncode == 0, out or "(no output)"
     except subprocess.TimeoutExpired:
         return False, "Install timed out."
+    except Exception as exc:
+        return False, str(exc)
+
+
+def run_remove(check_name: str) -> tuple[bool, str]:
+    """Run the uninstall command for the given check. Returns (success, output_or_error)."""
+    cmd = get_remove_command(check_name)
+    if not cmd:
+        return False, "No uninstall command for this dependency."
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        out = (result.stdout or "").strip() + "\n" + (result.stderr or "").strip()
+        return result.returncode == 0, out or "(no output)"
+    except subprocess.TimeoutExpired:
+        return False, "Uninstall timed out."
     except Exception as exc:
         return False, str(exc)

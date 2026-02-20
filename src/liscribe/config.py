@@ -26,8 +26,8 @@ DEFAULTS: dict[str, dict[str, Any]] = {
         "description": "Whisper model size: tiny, base, small, medium, large.",
     },
     "auto_clipboard": {
-        "value": False,
-        "description": "Automatically copy transcript to clipboard after transcription. Disabled by default — enable if you trust your clipboard managers with recording content.",
+        "value": True,
+        "description": "Automatically copy transcript to clipboard after transcription. Enabled by default.",
     },
     "sample_rate": {
         "value": 16000,
@@ -72,6 +72,10 @@ DEFAULTS: dict[str, dict[str, Any]] = {
     "open_transcript_app": {
         "value": "cursor",
         "description": "Command used by the TUI 'Open transcript' button (e.g. 'code', 'code -r', 'default'). Use 'default' to open with the system default app.",
+    },
+    "record_here_by_default": {
+        "value": False,
+        "description": "When true, pressing Record from the TUI Home screen saves to ./docs/transcripts in the current directory (same behavior as --here).",
     },
 }
 

@@ -14,7 +14,10 @@ from liscribe.recorder import list_input_devices
 class MicSelectScreen(ModalScreen[int | None]):
     """Modal screen to select a different microphone."""
 
-    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("ctrl+c", "cancel", "Cancel", key_display="^c", priority=True),
+    ]
 
     def __init__(self, current_device: int | None) -> None:
         super().__init__()
@@ -46,6 +49,7 @@ class ConfirmCancelScreen(ModalScreen[bool]):
 
     BINDINGS = [
         Binding("escape", "no", "No"),
+        Binding("ctrl+c", "yes", "Yes", key_display="^c", priority=True),
         Binding("y", "yes", "Yes"),
         Binding("n", "no", "No"),
     ]

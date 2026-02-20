@@ -77,10 +77,10 @@ class RecordingScreen(Screen[RecordingResult]):
                 )
                 yield Input(placeholder="Type a note, press Enter...", id="note-input")
 
-            with Horizontal(id="footer-bar"):
-                yield Button("^s Stop & Save", id="btn-footer-save", classes="btn primary inline")
-                yield Static("", id="footer-bar-spacer")
-                yield Button("^C Cancel", id="btn-footer-cancel", classes="btn secondary inline")
+            with Horizontal(classes="screen-body-footer"):
+                yield Button("^c Back to preferences", id="btn-back", classes="btn secondary inline hug-row")
+                yield Static("", classes="spacer-row")
+                yield Button("Save", id="btn-save", classes="btn primary inline hug-row")
 
     def on_mount(self) -> None:
         try:
@@ -217,9 +217,9 @@ class RecordingScreen(Screen[RecordingResult]):
             self.action_change_mic()
         elif bid == "btn-speaker":
             self.action_toggle_speaker()
-        elif bid == "btn-footer-save":
+        elif bid == "btn-save":
             self.action_stop_save()
-        elif bid == "btn-footer-cancel":
+        elif bid == "btn-back":
             self.action_cancel()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:

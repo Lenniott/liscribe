@@ -445,7 +445,10 @@ class LiscribeApp(App[None]):
         folder = self._folder
         if not folder:
             cfg = load_config()
-            folder = cfg.get("save_folder", "~/transcripts")
+            if bool(cfg.get("record_here_by_default", False)):
+                folder = str(Path.cwd() / "docs" / "transcripts")
+            else:
+                folder = cfg.get("save_folder", "~/transcripts")
         from pathlib import Path
         Path(folder).expanduser().resolve().mkdir(parents=True, exist_ok=True)
         self.push_screen(

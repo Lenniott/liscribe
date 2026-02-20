@@ -1,0 +1,95 @@
+%% Liscribe navigation: n = navigation, a = action (in circle labels)
+%% Shapes: [[screen]] = full screen, ([modal]) = modal overlay, (( )) = action or nav step.
+
+flowchart TB
+    Root(["Terminal (rec)"])
+
+    Root --> REC["rec"]
+    Root --> REC_S["rec -s"]
+    Root --> REC_PREF["rec preferences"]
+    Root --> REC_HELP["rec help"]
+    Root --> REC_DEV["rec devices"]
+    Root --> REC_TRANS["rec transcribe"]
+    Root --> REC_SETUP["rec setup"]
+    Root --> REC_CFG["rec config"]
+
+    %% CLI-only branches (leaves) - actions
+    REC_TRANS --> A_TRANS["[a] run pipeline, exit"]
+    REC_SETUP --> A_SETUP["[a] check deps, configure, download"]
+    REC_CFG --> A_CFG["[a] show/edit config"]
+
+    %% rec → Home branch
+    REC --> Home[["[n] HomeScreen"]]
+    Home --> Home_Record((n Record ^r))
+    Home --> Home_Prefs((n Preferences ^p))
+    Home --> Home_Transcripts((n Transcripts ^t))
+    Home --> Home_Close((a Back/Close ^c))
+
+    Home_Record --> Record[["[n] RecordingScreen"]]
+    Home_Prefs --> PrefsHub[["[n] PreferencesHubScreen"]]
+    Home_Transcripts --> Transcripts[["[n] TranscriptsScreen"]]
+
+    %% rec -s → Record directly
+    REC_S --> Record
+
+    %% rec preferences / help / devices → direct screens
+    REC_PREF --> PrefsHub
+    REC_HELP --> Help[["[n] HelpScreen"]]
+    REC_DEV --> Devices[["[n] DevicesScreen"]]
+
+    %% RecordingScreen branch
+    Record --> Rec_Stop((a Stop and Save ^s))
+    Record --> Rec_Cancel((n Cancel ^c))
+    Record --> Rec_Mic((n Change mic ^l))
+    Record --> Rec_Speaker((a Toggle speaker ^o))
+    Record --> Rec_Notes((a Focus notes ^n))
+    Record --> Rec_Screenshot((a Screenshot ^y))
+
+    Rec_Stop --> Transcribe[["[n] TranscribingScreen"]]
+    Rec_Cancel --> ConfirmCancel([ConfirmCancelScreen])
+    Rec_Mic --> MicSelect([MicSelectScreen])
+
+    ConfirmCancel --> CC_Yes((a Yes to Home ^c or y))
+    ConfirmCancel --> CC_No((a No keep Recording))
+    MicSelect --> MS_Select((a Select))
+    MicSelect --> MS_Cancel((a Cancel))
+
+    Transcribe --> Trans_Open((a Open transcript))
+    Transcribe --> Trans_Back((n Back to Home ^c or esc))
+
+    %% PreferencesHub branch
+    PrefsHub --> PH_General((n General))
+    PrefsHub --> PH_Transcripts((n Transcripts))
+    PrefsHub --> PH_Whisper((n Whisper))
+    PrefsHub --> PH_Deps((n Dependencies))
+    PrefsHub --> PH_Back((n Back to Home ^c or esc))
+
+    PH_General --> PrefsGeneral[["[n] PrefsGeneralScreen"]]
+    PH_Transcripts --> PrefsTranscripts[["[n] PrefsTranscriptsScreen"]]
+    PH_Whisper --> PrefsWhisper[["[n] PrefsWhisperScreen"]]
+    PH_Deps --> PrefsDeps[["[n] PrefsDependenciesScreen"]]
+
+    PrefsGeneral --> PG_Save((a Save settings))
+    PrefsGeneral --> PG_Back((n Back to Preferences ^c or esc))
+    PrefsTranscripts --> PT_Save((a Save settings))
+    PrefsTranscripts --> PT_Back((n Back to Preferences ^c or esc))
+    PrefsWhisper --> PW_Save((a Save language))
+    PrefsWhisper --> PW_Model((a Set default or Download or Remove))
+    PrefsWhisper --> PW_Back((n Back to Preferences ^c or esc))
+    PrefsDeps --> PD_Install((a Download or Remove))
+    PrefsDeps --> PD_Back((n Back to Preferences ^c or esc))
+
+    %% TranscriptsScreen branch
+    Transcripts --> TS_Copy((a Copy to clipboard))
+    Transcripts --> TS_Back((n Back to Home ^c or esc))
+
+    %% Help & Devices (simple leaves)
+    Help --> H_Back((n Back to Home ^c or esc))
+    Devices --> D_Back((n Back to Home ^c or esc))
+
+    %% Legend
+    subgraph legend[" "]
+        L1[[Screen]]
+        L2([Modal])
+        L3((Action / nav))
+    end

@@ -13,8 +13,8 @@
         "description": "Whisper model size: tiny, base, small, medium, large. Larger = more accurate but slower."
     },
     "auto_clipboard": {
-        "value": false,
-        "description": "Automatically copy transcript to clipboard after transcription. Disabled by default — enable if you trust your clipboard managers with recording content."
+        "value": true,
+        "description": "Automatically copy transcript to clipboard after transcription. Enabled by default."
     },
     "sample_rate": {
         "value": 16000,
@@ -55,5 +55,13 @@
     "command_alias": {
         "value": "rec",
         "description": "Command alias/name displayed in help text and messages."
+    },
+    "open_transcript_app": {
+        "value": "cursor",
+        "description": "Command used by the TUI 'Open transcript' button (e.g. 'code', 'code -r', 'default'). Use 'default' to open with the system default app."
+    },
+    "record_here_by_default": {
+        "value": false,
+        "description": "When true, pressing Record from the TUI Home screen saves to ./docs/transcripts in the current directory (same behavior as --here)."
     }
 }

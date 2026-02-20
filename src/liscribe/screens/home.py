@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, ScrollableContainer
 from textual.message import Message
 from textual.screen import Screen
 from textual.widgets import Button, Static
 
-from liscribe.screens.base import HOME_BINDINGS, __version__, render_brand
+from liscribe.screens.base import HOME_BINDINGS
+from liscribe.screens.top_bar import TopBar
 
 
 class HomeRecordRequest(Message):
@@ -28,22 +29,19 @@ class HomeScreen(Screen[None]):
     BINDINGS = HOME_BINDINGS
 
     def compose(self):
-        with Vertical(classes="screen-frame"):
-            with Vertical(classes="top-bar hero"):
-                with Horizontal(classes="version-row"):
-                    yield Static(f"v{__version__}", classes="version home-version")
-                with Horizontal(classes="title-row"):
-                    yield Static(render_brand(), classes="brand home-brand")
-                with Horizontal(classes="subtitle-row"):
-                    yield Static("It listens & transcribes locally", classes="tagline home-tagline")
-            with Horizontal(classes="screen-body"):
-                yield Button("^r  Record", id="btn-record", classes="btn primary")
-            with Horizontal(classes="screen-body-footer"):
-                yield Button("^t  Transcripts", id="btn-transcripts", classes="btn secondary inline")
-                yield Static("", classes="row-spacer")
-                yield Button("^p  Preferences", id="btn-preferences", classes="btn secondary inline")               
-                yield Static("", classes="row-spacer")
-                yield Button("^c  Close", id="btn-quit", classes="btn danger inline")
+        with ScrollableContainer(classes="container-frame"):
+            with Vertical(classes="screen-frame"):
+                yield TopBar(variant="hero", section="Home")
+                with Vertical(classes="screen-body"):
+                    yield Static("", classes="spacer")
+                    yield Button("^r  Record", id="btn-record", classes="btn primary")
+                    yield Static("", classes="margin-small")
+                with Horizontal(classes="screen-body-footer"):
+                    yield Button("^t  Transcripts", id="btn-transcripts", classes="btn secondary inline")
+                    yield Static("", classes="spacer-row")
+                    yield Button("^p  Preferences", id="btn-preferences", classes="btn secondary inline")               
+                    yield Static("", classes="spacer-row")
+                    yield Button("^c  Close", id="btn-quit", classes="btn danger inline")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
