@@ -79,7 +79,11 @@ sequenceDiagram
         Rec->>Rec: Swap InputStream, continue writing
     end
     User->>CLI: Stop (Ctrl+S)
-    Rec->>FS: Save WAV to --folder path
+    alt mic only
+        Rec->>FS: Save timestamp.wav
+    else mic + speaker
+        Rec->>FS: Save session/mic.wav + session/speaker.wav + session.json
+    end
 
     alt -s flag was set
         CLI->>Platform: Restore original output device
@@ -95,9 +99,9 @@ sequenceDiagram
     participant Out as output.py
     participant FS as Filesystem
 
-    Rec->>Trans: Transcribe WAV
-    Trans-->>Out: Text segments + metadata
+    Rec->>Trans: Transcribe mic and speaker WAVs independently
+    Trans-->>Out: Source-labeled segments + merged chronological timeline
     Out->>FS: Write .md transcript
     FS-->>Out: Write confirmed
-    Out->>FS: Delete WAV (only after MD saved)
+    Out->>FS: Delete source WAV(s) (only after MD saved)
 ```

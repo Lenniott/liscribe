@@ -37,7 +37,7 @@ This removes the virtual environment, config, model cache, and shell alias. Opti
 
 ```bash
 rec -f /path/to/save              # Record mic, save to folder
-rec -f /path/to/save -s           # Record mic + speaker (BlackHole)
+rec -f /path/to/save -s           # Record mic + speaker (BlackHole), source-labeled merge
 rec -f /path/to/save --mic "USB" # Use a specific microphone
 rec -h                            # Save to ./docs/transcripts in current directory
 rec transcribe file.wav           # Transcribe existing audio (or rec t file.wav)
@@ -48,6 +48,13 @@ rec --help                        # Full command and option list
 ```
 
 During recording you can type notes; they are timestamped and included in the transcript as footnote references [1], [2] and a Notes section.
+
+With `-s`, Liscribe records two source tracks (`mic.wav`, `speaker.wav`) and writes a merged chronological transcript where speaker labels are deterministic:
+
+```text
+[00:03.2] YOU: ...
+[00:05.7] THEM: ...
+```
 
 ## Models and transcription
 
