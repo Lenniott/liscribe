@@ -67,6 +67,50 @@ def _build_annotated_transcript(
     return " ".join(parts)
 
 
+def _format_timestamp(seconds: float) -> str:
+    """Format timestamp as MM:SS.s (or HH:MM:SS.s when needed)."""
+    total = max(0.0, float(seconds))
+    hrs = int(total // 3600)
+    mins = int((total % 3600) // 60)
+    secs = total % 60
+    if hrs > 0:
+        return f"{hrs:02d}:{mins:02d}:{secs:04.1f}"
+    return f"{mins:02d}:{secs:04.1f}"
+
+
+def _build_chronological_transcript(
+    segments: list[dict],
+    notes: list[Note] | None = None,
+    include_timestamps: bool = False,
+) -> str:
+    """Build line-by-line chronological transcript with source-based speakers."""
+    seg_notes: dict[int, list[int]] = defaultdict(list)
+    if notes:
+        for note in notes:
+            idx = _find_segment_for_note(segments, note.timestamp)
+            seg_notes[idx].append(note.index)
+
+    lines: list[str] = []
+    for i, seg in enumerate(segments):
+        text = seg.get("text", "").strip()
+        if not text:
+            continue
+        source = seg.get("source")
+        if source == "mic":
+            speaker = "In (mic)"
+        elif source == "speaker":
+            speaker = "Out (speaker)"
+        else:
+            speaker = seg.get("speaker", "Speaker")
+        refs = "".join(f"[{n}]" for n in seg_notes.get(i, []))
+        if include_timestamps:
+            ts = _format_timestamp(seg.get("start", 0.0))
+            lines.append(f"[{ts}] {speaker}: {text}{refs}")
+        else:
+            lines.append(f"{speaker}: {text}{refs}")
+    return "\n".join(lines)
+
+
 def build_markdown(
     result: TranscriptionResult,
     audio_path: str | Path,
@@ -78,20 +122,26 @@ def build_markdown(
     """Build a Markdown string with YAML front matter for a transcription."""
     audio_path = Path(audio_path)
     now = datetime.now()
+    from liscribe.config import load_config
+    cfg = load_config()
 
     if model_name is None:
-        from liscribe.config import load_config
-        model_name = load_config().get("whisper_model", "base")
+        model_name = cfg.get("whisper_model", "base")
 
+    source_based = any("speaker" in seg and "source" in seg for seg in result.segments)
     front_matter: dict = {
         "title": f"Transcript {now.strftime('%Y-%m-%d %H:%M')}",
         "date": now.isoformat(),
         "duration_seconds": round(result.duration, 1),
         "word_count": result.word_count,
         "language": result.language,
-        "speaker_capture": speaker_mode,
+        "speaker_capture": speaker_mode or source_based,
         "model": model_name,
     }
+    if source_based:
+        front_matter["diarization"] = "source-based"
+        front_matter["sources"] = {"mic": "YOU", "speaker": "THEM"}
+
     # Only include mic name if it's a real, known device name.
     # Omitting "unknown" avoids writing a misleading field and keeps
     # exported transcripts free of unhelpful hardware noise.
@@ -105,7 +155,15 @@ def build_markdown(
     lines.append("## Transcript")
     lines.append("")
 
-    if notes and result.segments:
+    if source_based and result.segments:
+        lines.append(
+            _build_chronological_transcript(
+                result.segments,
+                notes=notes,
+                include_timestamps=bool(cfg.get("source_include_timestamps", False)),
+            )
+        )
+    elif notes and result.segments:
         lines.append(_build_annotated_transcript(result.segments, notes))
     else:
         lines.append(result.text)
@@ -130,6 +188,7 @@ def save_transcript(
     model_name: str | None = None,
     include_model_in_filename: bool = False,
     output_dir: str | Path | None = None,
+    filename_stem: str | None = None,
 ) -> Path:
     """Write transcript to a .md file.
 
@@ -139,7 +198,7 @@ def save_transcript(
     """
     audio_path = Path(audio_path)
 
-    stem = audio_path.stem
+    stem = filename_stem or audio_path.stem
     suffix = f"_{model_name}" if include_model_in_filename and model_name else ""
     filename = f"{stem}{suffix}.md"
 

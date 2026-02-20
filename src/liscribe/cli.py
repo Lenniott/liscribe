@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
-import time
 import wave
 from pathlib import Path
 
@@ -152,6 +152,32 @@ def _audio_description(audio_path: Path) -> str:
         return audio_path.suffix.lstrip(".").upper()
 
 
+def _load_dual_source_session(audio_path: Path) -> dict | None:
+    """Return dual-source session details when *audio_path* points to session mic.wav."""
+    if audio_path.name.lower() != "mic.wav":
+        return None
+    session_dir = audio_path.parent
+    speaker_path = session_dir / "speaker.wav"
+    session_json_path = session_dir / "session.json"
+    if not speaker_path.exists() or not session_json_path.exists():
+        return None
+
+    offset = 0.0
+    try:
+        session_meta = json.loads(session_json_path.read_text(encoding="utf-8"))
+        offset = float(session_meta.get("offset_correction_seconds", 0.0))
+    except Exception:
+        offset = 0.0
+
+    return {
+        "session_dir": session_dir,
+        "session_json_path": session_json_path,
+        "mic_audio_path": audio_path,
+        "speaker_audio_path": speaker_path,
+        "speaker_offset_seconds": offset,
+    }
+
+
 def _transcribe_with_progress(audio_path: str, model_size: str, label: str):
     """Load model (spinner), then transcribe with segment-based progress and ETA."""
     from liscribe.transcriber import load_model, transcribe
@@ -203,6 +229,63 @@ def _transcribe_with_progress(audio_path: str, model_size: str, label: str):
     return result
 
 
+def _transcribe_dual_with_progress(
+    mic_audio_path: str,
+    speaker_audio_path: str,
+    model_size: str,
+    label: str,
+    speaker_offset_seconds: float = 0.0,
+    group_consecutive: bool = False,
+    suppress_mic_bleed_duplicates: bool = False,
+    bleed_similarity_threshold: float = 0.82,
+):
+    """Transcribe mic and speaker tracks independently, then merge chronologically."""
+    from liscribe.transcriber import load_model, transcribe, build_merged_transcription_result
+
+    with console.status(f"  Loading [bold]{model_size}[/bold] model..."):
+        model = load_model(model_size)
+
+    progress = Progress(
+        TextColumn(label),
+        BarColumn(bar_width=26),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        TimeRemainingColumn(),
+        console=console,
+        transient=False,
+    )
+    task = progress.add_task("", total=1000, completed=0)
+
+    def mic_progress(p: float, info: dict | None = None) -> None:
+        progress.update(task, completed=min(500, int(p * 500)))
+
+    def speaker_progress(p: float, info: dict | None = None) -> None:
+        progress.update(task, completed=min(1000, 500 + int(p * 500)))
+
+    progress.start()
+    try:
+        mic_result = transcribe(mic_audio_path, model=model, model_size=model_size, on_progress=mic_progress)
+        speaker_result = transcribe(
+            speaker_audio_path,
+            model=model,
+            model_size=model_size,
+            on_progress=speaker_progress,
+        )
+        merged_result = build_merged_transcription_result(
+            mic_result=mic_result,
+            speaker_result=speaker_result,
+            speaker_offset_seconds=speaker_offset_seconds,
+            group_consecutive=group_consecutive,
+            suppress_mic_bleed_duplicates=suppress_mic_bleed_duplicates,
+            bleed_similarity_threshold=bleed_similarity_threshold,
+            model_name=model_size,
+        )
+        progress.update(task, completed=1000)
+        return merged_result
+    finally:
+        progress.stop()
+
+
 def _run_transcription_pipeline(
     audio_path: str | Path,
     models: list[str],
@@ -217,6 +300,9 @@ def _run_transcription_pipeline(
     from liscribe.output import save_transcript, copy_to_clipboard, cleanup_audio
 
     audio_path = Path(audio_path)
+    dual_session = _load_dual_source_session(audio_path)
+    is_dual_source = dual_session is not None
+    cfg = load_config()
     multi_model = len(models) > 1
     cmd_name = _get_command_name(ctx)
 
@@ -239,13 +325,22 @@ def _run_transcription_pipeline(
         return
 
     n = len(available)
-    desc = _audio_description(audio_path)
+    desc = _audio_description(dual_session["mic_audio_path"] if is_dual_source else audio_path)
     if multi_model or skipped:
         console.print(f"  [bold]Transcribing[/bold]  {n} model{'s' if n != 1 else ''} | {desc}")
     else:
         console.print(f"  [bold]Transcribing[/bold]  {available[0]} model | {desc}")
+    if is_dual_source:
+        console.print("  [dim]Mode: source-based merge (YOU=mic, THEM=speaker)[/dim]")
+        console.print(
+            f"  [dim]Offset correction: {dual_session['speaker_offset_seconds']:+.3f}s[/dim]"
+        )
 
     results: list[tuple[str, object, Path]] = []
+    group_consecutive = bool(cfg.get("group_consecutive_speaker_lines", False))
+    suppress_mic_bleed = bool(cfg.get("suppress_mic_bleed_duplicates", True))
+    bleed_similarity_threshold = float(cfg.get("mic_bleed_similarity_threshold", 0.62))
+    filename_stem = dual_session["session_dir"].name if is_dual_source else None
 
     for i, model_size in enumerate(available):
         if n > 1:
@@ -254,20 +349,33 @@ def _run_transcription_pipeline(
             label = f"  [bold]{model_size:<8}[/bold]        "
 
         try:
-            result = _transcribe_with_progress(str(audio_path), model_size, label)
+            if is_dual_source:
+                result = _transcribe_dual_with_progress(
+                    mic_audio_path=str(dual_session["mic_audio_path"]),
+                    speaker_audio_path=str(dual_session["speaker_audio_path"]),
+                    model_size=model_size,
+                    label=label,
+                    speaker_offset_seconds=float(dual_session["speaker_offset_seconds"]),
+                    group_consecutive=group_consecutive,
+                    suppress_mic_bleed_duplicates=suppress_mic_bleed,
+                    bleed_similarity_threshold=bleed_similarity_threshold,
+                )
+            else:
+                result = _transcribe_with_progress(str(audio_path), model_size, label)
         except Exception as exc:
             console.print(f"  [red]\\[fail][/red] [bold]{model_size}[/bold]: {exc}")
             continue
 
         md_path = save_transcript(
             result=result,
-            audio_path=audio_path,
+            audio_path=dual_session["mic_audio_path"] if is_dual_source else audio_path,
             notes=notes,
             mic_name=mic_name,
-            speaker_mode=speaker_mode,
+            speaker_mode=speaker_mode or is_dual_source,
             model_name=model_size,
             include_model_in_filename=multi_model,
             output_dir=output_dir,
+            filename_stem=filename_stem,
         )
         results.append((model_size, result, md_path))
 
@@ -286,8 +394,7 @@ def _run_transcription_pipeline(
     console.print(f"  [dim]Transcript: {first_md.resolve()}[/dim]")
 
     # -- Clipboard: pick highest-quality model --
-    cfg = load_config()
-    if cfg.get("auto_clipboard", True):
+    if cfg.get("auto_clipboard", False):
         def _quality(name: str) -> int:
             try:
                 return MODEL_QUALITY_ORDER.index(name)
@@ -301,10 +408,31 @@ def _run_transcription_pipeline(
 
     # -- Cleanup: only after ALL transcripts confirmed on disk --
     all_md_paths = [p for _, _, p in results]
-    if cleanup_audio(audio_path, all_md_paths):
-        console.print(f"  [green]Cleanup[/green]       audio removed")
+    cleanup_targets = [audio_path]
+    if is_dual_source:
+        cleanup_targets = [
+            dual_session["mic_audio_path"],
+            dual_session["speaker_audio_path"],
+        ]
+
+    removed_all = True
+    for target in cleanup_targets:
+        if not cleanup_audio(target, all_md_paths):
+            removed_all = False
+
+    if removed_all and is_dual_source:
+        session_json = dual_session["session_json_path"]
+        try:
+            session_json.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    if removed_all:
+        label = "audio sources removed" if is_dual_source else "audio removed"
+        console.print(f"  [green]Cleanup[/green]       {label}")
     else:
-        console.print(f"  [dim]Audio kept at: {audio_path}[/dim]")
+        for target in cleanup_targets:
+            console.print(f"  [dim]Audio kept at: {target}[/dim]")
 
 
 # ---------------------------------------------------------------------------
@@ -389,6 +517,7 @@ def main(
         return
 
     console.print(f"  [green]Audio saved[/green]   {Path(wav_path).name}")
+    console.print("  [dim]Preparing transcription pipeline...[/dim]")
     timestamped_notes = app.notes
 
     # -- Determine models --

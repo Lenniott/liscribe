@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from typing import Any
 
@@ -371,11 +370,7 @@ class RecordingApp(App[str | None]):
         """Disable speaker capture mid-recording (toggle off)."""
         if not self.session or not self.speaker:
             return
-        if self.session._speaker_stream is not None:
-            self.session._speaker_stream.stop()
-            self.session._speaker_stream.close()
-            self.session._speaker_stream = None
-        self.session._restore_audio_output()
+        self.session.disable_speaker_capture()
         self.speaker = False
         self.set_class(False, "waveform-speaker-on")
         try:

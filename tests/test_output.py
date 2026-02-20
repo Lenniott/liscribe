@@ -2,6 +2,7 @@
 
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 from liscribe.notes import Note
 from liscribe.transcriber import TranscriptionResult
@@ -30,6 +31,19 @@ def _make_multi_segment_result() -> TranscriptionResult:
     ]
     text = " ".join(s["text"] for s in segments)
     return TranscriptionResult(text=text, segments=segments, language="en", duration=4.0)
+
+
+def _make_source_segment_result() -> TranscriptionResult:
+    segments = [
+        {"start": 1.2, "end": 2.0, "text": "Okay let's start.", "source": "mic", "speaker": "YOU"},
+        {"start": 2.9, "end": 3.5, "text": "Sure, I can see your screen now.", "source": "speaker", "speaker": "THEM"},
+    ]
+    return TranscriptionResult(
+        text="YOU: Okay let's start. THEM: Sure, I can see your screen now.",
+        segments=segments,
+        language="en",
+        duration=5.0,
+    )
 
 
 class TestBuildMarkdown:
@@ -72,6 +86,16 @@ class TestBuildMarkdown:
         md = build_markdown(result, "/tmp/test.wav", notes=notes)
         assert "Plain text" in md
         assert "[^1]: a note" in md
+
+    def test_source_based_chronological_transcript(self):
+        with patch(
+            "liscribe.config.load_config",
+            return_value={"whisper_model": "base", "source_include_timestamps": False},
+        ):
+            md = build_markdown(_make_source_segment_result(), "/tmp/mic.wav")
+        assert "diarization: source-based" in md
+        assert "In (mic): Okay let's start." in md
+        assert "Out (speaker): Sure, I can see your screen now." in md
 
 
 class TestSegmentNoteMapping:
@@ -148,6 +172,13 @@ class TestSaveTranscript:
             assert md_path.suffix == ".md"
             content = md_path.read_text()
             assert "Hello world." in content
+
+    def test_respects_filename_stem_override(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            wav_path = Path(tmpdir) / "mic.wav"
+            wav_path.write_bytes(b"fake wav")
+            md_path = save_transcript(_make_result(), wav_path, filename_stem="session_123")
+            assert md_path.name == "session_123.md"
 
 
 class TestCleanupAudio:

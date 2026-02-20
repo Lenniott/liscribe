@@ -49,6 +49,22 @@ DEFAULTS: dict[str, dict[str, Any]] = {
         "value": "en",
         "description": "Transcription language (ISO 639-1 code, e.g. en, fr, de). Use 'auto' for auto-detect.",
     },
+    "group_consecutive_speaker_lines": {
+        "value": True,
+        "description": "When dual-source transcripts are generated, merge nearby consecutive lines from the same speaker.",
+    },
+    "source_include_timestamps": {
+        "value": False,
+        "description": "When dual-source transcripts are generated, include [MM:SS.s] timestamps in each line.",
+    },
+    "suppress_mic_bleed_duplicates": {
+        "value": True,
+        "description": "When dual-source transcripts are generated, drop mic lines that are near-duplicate speaker bleed.",
+    },
+    "mic_bleed_similarity_threshold": {
+        "value": 0.62,
+        "description": "Similarity threshold (0-1) used for suppressing mic bleed duplicates; higher = stricter matching.",
+    },
     "command_alias": {
         "value": "rec",
         "description": "Command alias/name displayed in help text and messages. Change this if you use a different alias (e.g., 'scrib', 'rec').",
