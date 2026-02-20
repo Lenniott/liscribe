@@ -79,7 +79,6 @@ Screen {
 .top-bar-section {
     width: auto;
     content-align: right middle;
-    text-style: bold;
 }
 
 .screen-body-footer {
@@ -88,6 +87,24 @@ Screen {
     align: center top;
     padding: 0 1;
 }
+
+.row {
+    width: 100%;
+    height: 1;
+    align: left middle;
+    padding: 0 1;
+}
+
+.row Button {
+    width: auto;
+    height: auto;
+    margin-bottom:0;
+}
+
+.hug-row {
+    width: 1fr;
+}
+
 #status-text {
     width: 1fr;
 }
@@ -377,6 +394,9 @@ ModalScreen {
 
 .btn.primary {
     background: $primary;
+    width: 100%;
+    min-width: 10;
+    max-width: 50%;
 }
 
 .btn:hover.primary {

@@ -5,6 +5,17 @@ from __future__ import annotations
 from textual.binding import Binding
 from textual.screen import Screen
 
+from liscribe import __version__
+
+
+def render_brand() -> str:
+    """Render liscribe brand title as ASCII art."""
+    try:
+        from pyfiglet import Figlet
+        return Figlet(font="banner3").renderText("liscribe").rstrip()
+    except Exception:
+        return "liscribe"
+
 
 BACK_BINDINGS = [Binding("escape", "back", "Back")]
 
@@ -21,7 +32,7 @@ HOME_BINDINGS = [
     Binding("ctrl+r", "record", "Record", key_display="^r"),
     Binding("ctrl+p", "preferences", "Preferences", key_display="^p"),
     Binding("ctrl+t", "transcripts", "Transcripts", key_display="^t"),
-    Binding("ctrl+c", "close", "close", key_display="^c"),
+    Binding("ctrl+c", "home_quit", "close", key_display="^c", priority=True),
 ]
 
 

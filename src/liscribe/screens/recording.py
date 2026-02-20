@@ -277,11 +277,7 @@ class RecordingScreen(Screen[RecordingResult]):
     def action_remove_speaker_capture(self) -> None:
         if not self.session or not self.speaker:
             return
-        if self.session._speaker_stream is not None:
-            self.session._speaker_stream.stop()
-            self.session._speaker_stream.close()
-            self.session._speaker_stream = None
-        self.session._restore_audio_output()
+        self.session.disable_speaker_capture()
         self.speaker = False
         self.set_class(False, "waveform-speaker-on")
         try:

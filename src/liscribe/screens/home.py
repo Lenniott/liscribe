@@ -7,18 +7,7 @@ from textual.message import Message
 from textual.screen import Screen
 from textual.widgets import Button, Static
 
-from pyfiglet import Figlet
-
-from liscribe import __version__
-from liscribe.screens.base import HOME_BINDINGS
-
-
-def _render_brand() -> str:
-    """Render home brand title as ASCII art."""
-    try:
-        return Figlet(font="banner3").renderText("liscribe").rstrip()
-    except Exception:
-        return "liscribe"
+from liscribe.screens.base import HOME_BINDINGS, __version__, render_brand
 
 
 class HomeRecordRequest(Message):
@@ -44,7 +33,7 @@ class HomeScreen(Screen[None]):
                 with Horizontal(classes="version-row"):
                     yield Static(f"v{__version__}", classes="version home-version")
                 with Horizontal(classes="title-row"):
-                    yield Static(_render_brand(), classes="brand home-brand")
+                    yield Static(render_brand(), classes="brand home-brand")
                 with Horizontal(classes="subtitle-row"):
                     yield Static("It listens & transcribes locally", classes="tagline home-tagline")
             with Horizontal(classes="screen-body"):
@@ -75,6 +64,9 @@ class HomeScreen(Screen[None]):
 
     def action_transcripts(self) -> None:
         self.post_message(HomeTranscriptsRequest())
+
+    def action_home_quit(self) -> None:
+        self.action_quit()
 
     def action_quit(self) -> None:
         self.app.exit()

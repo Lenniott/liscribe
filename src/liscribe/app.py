@@ -416,13 +416,19 @@ class LiscribeApp(App[None]):
             return
         wav_path, notes = result
         from pathlib import Path
+        wav_path_obj = Path(wav_path)
+        dual_source_mode = (
+            wav_path_obj.name.lower() == "mic.wav"
+            and (wav_path_obj.parent / "speaker.wav").exists()
+            and (wav_path_obj.parent / "session.json").exists()
+        )
         output_dir = self._folder or str(Path(wav_path).parent)
         self.push_screen(
             TranscribingScreen(
                 wav_path=wav_path,
                 notes=notes,
                 output_dir=output_dir,
-                speaker_mode=self._speaker,
+                speaker_mode=self._speaker or dual_source_mode,
             ),
             self._on_transcribing_done,
         )

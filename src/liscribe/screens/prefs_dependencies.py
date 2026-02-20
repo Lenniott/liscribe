@@ -20,7 +20,9 @@ class PrefsDependenciesScreen(BackScreen):
             with Vertical(classes="screen-body"):
                 with ScrollableContainer(id="deps-container", classes="scroll-fill"):
                     pass  # filled in on_mount
-                yield Button("Back to Preferences", id="btn-back", classes="btn secondary")
+            with Horizontal(classes="screen-body-footer"):
+                yield Button("esc Back to Preferences", id="btn-back", classes="btn secondary inline hug-row")
+                yield Static("", classes="row-spacer")
 
     def on_mount(self) -> None:
         self._refresh()
