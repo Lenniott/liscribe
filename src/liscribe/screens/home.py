@@ -46,7 +46,7 @@ class HomeScreen(Screen[None]):
                 with Horizontal(classes="title-row"):
                     yield Static(_render_brand(), classes="brand home-brand")
                 with Horizontal(classes="subtitle-row"):
-                    yield Static("Listen & transcribe locally", classes="tagline home-tagline")
+                    yield Static("It listens & transcribes locally", classes="tagline home-tagline")
             with Horizontal(classes="screen-body"):
                 yield Button("^r  Record", id="btn-record", classes="btn primary")
             with Horizontal(classes="screen-body-footer"):
@@ -54,7 +54,7 @@ class HomeScreen(Screen[None]):
                 yield Static("", classes="row-spacer")
                 yield Button("^p  Preferences", id="btn-preferences", classes="btn secondary inline")               
                 yield Static("", classes="row-spacer")
-                yield Button("^c  Quit", id="btn-quit", classes="btn danger inline")
+                yield Button("^c  Close", id="btn-quit", classes="btn danger inline")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
