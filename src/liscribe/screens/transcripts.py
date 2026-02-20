@@ -24,7 +24,7 @@ class TranscriptsScreen(BackScreen):
             with Vertical(classes="screen-body"):
                 with ScrollableContainer(id="transcripts-list", classes="scroll-fill"):
                     pass  # filled in on_mount
-                yield Button("Back to Home", id="btn-back", classes="btn secondary")
+            yield Button("esc Back Home", id="btn-back", classes="btn secondary inline")
 
     def on_mount(self) -> None:
         self._refresh()
@@ -67,11 +67,11 @@ class TranscriptsScreen(BackScreen):
                 self.notify("File not found", severity="error")
 
 
-class TranscriptRow(Vertical):
+class TranscriptRow(Horizontal):
     """One transcript row: date, filename, copy button."""
 
     def __init__(self, path: Path, date_str: str, **kwargs) -> None:
-        super().__init__(**kwargs)
+        super().__init__(classes="transcript-row", **kwargs)
         self.path = path
         self.date_str = date_str
 
@@ -79,5 +79,5 @@ class TranscriptRow(Vertical):
         # Use a stable id for the row so we can find it for copy
         row_id = self.path.stem
         self.id = f"row-{row_id}"
-        yield Static(f"{self.date_str}   {self.path.name}", id=f"label-{row_id}")
-        yield Button("Copy to clipboard", id=f"copy-{row_id}", classes="btn secondary inline")
+        yield Static(f"{self.date_str}   {self.path.name}", id=f"label-{row_id}", classes="transcript-label")
+        yield Button("Copy to clipboard", id=f"copy-{row_id}", classes="btn secondary inline transcript-copy")

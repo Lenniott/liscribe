@@ -21,7 +21,7 @@ HOME_BINDINGS = [
     Binding("ctrl+r", "record", "Record", key_display="^r"),
     Binding("ctrl+p", "preferences", "Preferences", key_display="^p"),
     Binding("ctrl+t", "transcripts", "Transcripts", key_display="^t"),
-    Binding("ctrl+c", "quit", "Quit", key_display="^c"),
+    Binding("ctrl+c", "close", "close", key_display="^c"),
 ]
 
 

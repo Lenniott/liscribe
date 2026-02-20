@@ -190,7 +190,7 @@ class RecordingScreen(Screen[RecordingResult]):
             dev_name = dev_info["name"]
 
         mode = " + Speaker" if self.speaker else ""
-        status = f"  liscribe  ●  REC  {hrs:02d}:{mins:02d}:{secs:02d}{mode}"
+        status = f"liscribe  ●  REC  {hrs:02d}:{mins:02d}:{secs:02d}{mode}"
         self.query_one("#status-text", Static).update(status)
         self.query_one("#mic-bar", Static).update(f"Mic: {dev_name}")
 
