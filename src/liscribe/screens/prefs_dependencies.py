@@ -13,11 +13,14 @@ class PrefsDependenciesScreen(BackScreen):
     """Show dependency check results; Install button for missing items."""
 
     def compose(self):
-        with Vertical(id="home-frame"):
-            yield Static("Dependency check", id="home-title")
-            with ScrollableContainer(id="deps-container"):
-                pass  # filled in on_mount
-            yield Button("Back to Preferences", id="btn-back")
+        with Vertical(classes="screen-frame"):
+            with Horizontal(classes="top-bar compact"):
+                yield Static("liscribe", classes="brand")
+                yield Static("Dependency check", classes="top-bar-section")
+            with Vertical(classes="screen-body"):
+                with ScrollableContainer(id="deps-container", classes="scroll-fill"):
+                    pass  # filled in on_mount
+                yield Button("Back to Preferences", id="btn-back", classes="btn secondary")
 
     def on_mount(self) -> None:
         self._refresh()
@@ -33,7 +36,7 @@ class PrefsDependenciesScreen(BackScreen):
             if not ok and get_install_command(name):
                 row = Horizontal(
                     Static(line, shrink=True),
-                    Button("Install", id=f"install-{name}"),
+                    Button("Install", id=f"install-{name}", classes="btn primary inline"),
                 )
             else:
                 row = Horizontal(Static(line, shrink=True))

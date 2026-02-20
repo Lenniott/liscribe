@@ -70,11 +70,11 @@ class RecordingApp(App[str | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="app-frame"):
             # Top bar: status + Speaker + Mic
-            with Horizontal(id="top-bar"):
+            with Horizontal(id="top-bar", classes="top-bar compact"):
                 yield Static("", id="status-text")
                 with Horizontal(id="top-bar-buttons"):
-                    yield Button("^o Speaker", id="btn-speaker")
-                    yield Button("^l Mic", id="btn-mic")
+                    yield Button("^o Speaker", id="btn-speaker", classes="btn secondary inline")
+                    yield Button("^l Mic", id="btn-mic", classes="btn secondary inline")
 
             yield Static("Mic: —", id="mic-bar")
 
@@ -97,9 +97,9 @@ class RecordingApp(App[str | None]):
 
             # Footer
             with Horizontal(id="footer-bar"):
-                yield Button("^s Stop & Save", id="btn-footer-save")
+                yield Button("^s Stop & Save", id="btn-footer-save", classes="btn primary inline")
                 yield Static("", id="footer-bar-spacer")
-                yield Button("^C Cancel", id="btn-footer-cancel")
+                yield Button("^C Cancel", id="btn-footer-cancel", classes="btn secondary inline")
 
     def on_mount(self) -> None:
         try:

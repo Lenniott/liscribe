@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from textual.containers import Vertical, ScrollableContainer
+from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.widgets import Button, Input, Static
 
 from liscribe.config import load_config, save_config
@@ -23,22 +23,26 @@ class PrefsWhisperScreen(BackScreen):
 
     def compose(self):
         cfg = load_config()
-        with Vertical(id="home-frame"):
-            yield Static("Whisper", id="home-title")
-            yield Static("Language (e.g. en, fr, auto):", id="whisper-label")
-            yield Input(value=cfg.get("language", "en") or "en", id="language-input")
-            yield Static("Default model:", id="model-label")
-            with ScrollableContainer(id="model-list"):
-                for name, desc in WHISPER_MODELS:
-                    installed = " ✓" if is_model_available(name) else ""
-                    current = " (default)" if name == cfg.get("whisper_model") else ""
-                    yield Button(
-                        f"{name}  {desc}{installed}{current}",
-                        id=f"model-{name}",
-                    )
-            yield Static("Download: run in terminal or use rec setup", id="whisper-hint")
-            yield Button("Save language", id="btn-save-lang")
-            yield Button("Back to Preferences", id="btn-back")
+        with Vertical(classes="screen-frame"):
+            with Horizontal(classes="top-bar compact"):
+                yield Static("liscribe", classes="brand")
+                yield Static("Whisper", classes="top-bar-section")
+            with Vertical(classes="screen-body"):
+                yield Static("Language (e.g. en, fr, auto):")
+                yield Input(value=cfg.get("language", "en") or "en", id="language-input")
+                yield Static("Default model:")
+                with ScrollableContainer(id="model-list", classes="scroll-fill"):
+                    for name, desc in WHISPER_MODELS:
+                        installed = " ✓" if is_model_available(name) else ""
+                        current = " (default)" if name == cfg.get("whisper_model") else ""
+                        yield Button(
+                            f"{name}  {desc}{installed}{current}",
+                            id=f"model-{name}",
+                            classes="btn secondary",
+                        )
+                yield Static("Download: run in terminal or use rec setup", classes="screen-body-subtitle")
+                yield Button("Save language", id="btn-save-lang", classes="btn primary")
+                yield Button("Back to Preferences", id="btn-back", classes="btn secondary")
 
     def on_mount(self) -> None:
         self._refresh_models()
@@ -55,6 +59,7 @@ class PrefsWhisperScreen(BackScreen):
                     Button(
                         f"{name}  {desc}{installed}{current}",
                         id=f"model-{name}",
+                        classes="btn secondary",
                     )
                 )
         except Exception:

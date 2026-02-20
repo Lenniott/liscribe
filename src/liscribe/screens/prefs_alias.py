@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Input, Static
 
 from liscribe.config import load_config, save_config
@@ -16,13 +16,17 @@ class PrefsAliasScreen(BackScreen):
     def compose(self):
         cfg = load_config()
         alias = cfg.get("command_alias", "rec") or "rec"
-        with Vertical(id="home-frame"):
-            yield Static("Alias", id="home-title")
-            yield Static("Command alias (used in help and shell):", id="alias-label")
-            yield Input(value=alias, id="alias-input", placeholder="rec")
-            yield Static(f"Updates {get_shell_rc_path()} when you save.", id="alias-hint")
-            yield Button("Save and update zshrc", id="btn-save")
-            yield Button("Back to Preferences", id="btn-back")
+        with Vertical(classes="screen-frame"):
+            with Horizontal(classes="top-bar compact"):
+                yield Static("liscribe", classes="brand")
+                yield Static("Alias", classes="top-bar-section")
+            with Vertical(classes="screen-body"):
+                yield Static("Command alias (used in help and shell):")
+                yield Input(value=alias, id="alias-input", placeholder="rec")
+                yield Static(f"Updates {get_shell_rc_path()} when you save.", classes="screen-body-subtitle")
+                yield Button("Save and update zshrc", id="btn-save", classes="btn primary")
+                yield Static("", classes="spacer")
+                yield Button("Back to Preferences", id="btn-back", classes="btn secondary")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-back":

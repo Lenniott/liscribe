@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from textual.containers import Vertical, ScrollableContainer
+from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.widgets import Button, Static
 
 from liscribe.recorder import list_input_devices
@@ -13,11 +13,14 @@ class DevicesScreen(BackScreen):
     """List audio input devices; Back to Home."""
 
     def compose(self):
-        with Vertical(id="home-frame"):
-            yield Static("Input devices", id="home-title")
-            with ScrollableContainer(id="devices-list"):
-                yield Static("", id="devices-text")
-            yield Button("Back to Home", id="btn-back")
+        with Vertical(classes="screen-frame"):
+            with Horizontal(classes="top-bar compact"):
+                yield Static("liscribe", classes="brand")
+                yield Static("Input devices", classes="top-bar-section")
+            with Vertical(classes="screen-body"):
+                with ScrollableContainer(id="devices-list", classes="scroll-fill"):
+                    yield Static("", id="devices-text")
+                yield Button("Back to Home", id="btn-back", classes="btn secondary")
 
     def on_mount(self) -> None:
         try:

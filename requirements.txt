@@ -6,3 +6,4 @@ textual>=0.80.0
 click>=8.1.0
 pyperclip>=1.9.0
 PyYAML>=6.0.2
+pyfiglet>=1.0.2

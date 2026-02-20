@@ -8,7 +8,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Static
 
@@ -38,11 +38,16 @@ class TranscribingScreen(Screen[None]):
         self._saved_md: str | None = None
 
     def compose(self):
-        with Vertical(id="home-frame"):
-            yield Static("Transcribing…", id="transcribing-title")
-            yield Static("Model: —", id="transcribing-status")
-            yield Static("", id="transcribing-progress")
-            yield Button("Back to Home", id="btn-back", disabled=True)
+        with Vertical(classes="screen-frame"):
+            with Horizontal(classes="top-bar compact"):
+                yield Static("liscribe", classes="brand")
+                yield Static("Transcribing", classes="top-bar-section")
+            with Vertical(classes="screen-body"):
+                yield Static("Transcribing…", id="transcribing-title", classes="screen-body-title")
+                yield Static("Model: —", id="transcribing-status")
+                yield Static("", id="transcribing-progress", classes="screen-body-subtitle")
+                yield Static("", classes="spacer")
+                yield Button("Back to Home", id="btn-back", classes="btn secondary", disabled=True)
 
     def on_mount(self) -> None:
         self.run_worker(self._run_pipeline, exclusive=True, thread=True)

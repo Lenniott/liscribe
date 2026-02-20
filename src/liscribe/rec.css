@@ -11,19 +11,81 @@ Screen {
     border: round $accent;
     padding: 0 0;
     background: $surface;
+    overflow: hidden;
+    overflow-y: scroll;
+    overflow-x: hidden;
+
 }
 
 /* Top bar */
 
-#top-bar {
+#top-bar,
+.top-bar {
     width: 100%;
-    height: 1;
     padding: 0 1;
     background: $accent;
     color: $text;
     align: left middle;
 }
 
+.top-bar.compact {
+    height: 1;
+}
+
+.top-bar.hero {
+    height: auto;
+    margin-bottom: 1;
+}
+
+.top-bar Static {
+    color: $text;
+    align: center middle;
+}
+
+.title-row {
+    width: 100%;
+    height: auto;
+    
+}
+
+.version-row {
+    width: 100%;
+    height: auto;
+    align: center middle;
+}
+
+.subtitle-row {
+    width: 100%;
+    height: auto;
+    align: center middle;
+    padding-bottom: 1;
+}
+
+.brand {
+    text-style: bold;
+}
+
+.top-bar.compact .brand {
+    width: 1fr;
+}
+
+.tagline {
+    color: $text-muted;
+}
+
+.version,
+.top-bar-section {
+    width: auto;
+    content-align: right middle;
+    text-style: bold;
+}
+
+.screen-body-footer {
+    width: 100%;
+    height:1;
+    align: center top;
+    padding: 0 1;
+}
 #status-text {
     width: 1fr;
 }
@@ -142,17 +204,21 @@ Screen {
 
 #footer-bar Button {
     color: $text-muted;
+    background: transparent;
     border: none;
+    text-style: none;
 }
 
 #footer-bar Button:hover {
     background: $background;
     color: $text;
+    text-style: none;
 }
 
 #footer-bar Button:focus {
     background: $background;
     color: $text;
+    text-style: none;
 }
 
 #btn-footer-save {
@@ -170,6 +236,7 @@ Screen {
 #btn-footer-cancel {
     width: auto;
     align: right middle;
+    background: transparent;
 }
 
 /* Modals */
@@ -228,49 +295,120 @@ ModalScreen {
     min-width: 1fr;
 }
 
-/* Home and other full-width screens (Home, Preferences, Transcripts, Help, Devices, Transcribing, prefs) */
+/* Shared full-width screens (Home, Preferences, Transcripts, Help, Devices, Transcribing, prefs) */
 
-#home-frame {
+.screen-frame {
     width: 100%;
     height: 100%;
     min-height: 16;
     border: round $accent;
-    padding: 2 2;
+    padding: 0 0;
     background: $surface;
 }
 
-#home-title {
+.screen-body {
     width: 100%;
-    content-align: center middle;
-    text-style: bold;
-    margin-bottom: 0;
+    height: 1fr;
+    overflow: none;
+    overflow-y: auto;
+    overflow-x: hidden;
+    align: center top;
 }
 
-#home-subtitle {
+.screen-body-title {
     width: 100%;
-    content-align: center middle;
-    color: $text-muted;
+    text-style: bold;
     margin-bottom: 1;
 }
 
-#home-frame Button {
-    width: 100%;
-    margin-bottom: 0;
-    background: $primary;
-    border: round $accent;
-}
-
-#home-frame #btn-record {
-    margin-top: 1;
-}
-
-#home-spacer {
-    height: 1;
-}
-
-#home-quit {
-    width: 100%;
-    content-align: right bottom;
+.screen-body-subtitle {
+    margin-bottom: 1;
     color: $text-muted;
-    margin-top: 1;
+}
+
+.scroll-fill {
+    height: 1fr;
+    min-height: 4;
+}
+
+.spacer {
+    height: 1fr;
+}
+
+.row-spacer {
+    width: 1fr;
+    min-width: 1;
+}
+
+.home-brand,
+.home-tagline,
+.home-version {
+    width: 100%;
+    content-align: center middle;
+    text-align: center;
+}
+
+.btn {
+    width: auto;
+    height: auto;
+    margin-bottom:0;
+    background: $surface;
+    color: $text;
+    text-style: bold;
+}
+
+.btn.primary {
+    background: $primary;
+}
+
+.btn:hover.primary {
+    background: $secondary;
+}
+
+.btn.secondary {
+    border: solid $secondary;
+}
+
+.btn:hover.secondary {
+    border: $secondary;
+    background: $secondary;
+}
+
+.btn.clear {
+    border: transparent;
+    background: transparent;
+}
+
+
+.btn.danger {
+    border: solid $error;
+}
+
+.btn:hover.danger {
+    border: $error;
+    background: $error;
+}
+
+.btn.inline {
+    width: auto;
+    height: 1;
+    align: center middle;
+    border: none;
+    padding: 0 1;
+}
+
+.btn.inline:hover {
+    color: $text;
+    border: none;
+}
+
+.btn:focus {
+    text-style: bold underline;
+}
+
+.btn:disabled {
+    background: $surface;
+    color: $text-muted;
+    border: solid $secondary;
+    text-style: none;
 }

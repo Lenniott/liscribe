@@ -2,12 +2,23 @@
 
 from __future__ import annotations
 
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.screen import Screen
 from textual.widgets import Button, Static
 
+from pyfiglet import Figlet
+
+from liscribe import __version__
 from liscribe.screens.base import HOME_BINDINGS
+
+
+def _render_brand() -> str:
+    """Render home brand title as ASCII art."""
+    try:
+        return Figlet(font="banner3").renderText("liscribe").rstrip()
+    except Exception:
+        return "liscribe"
 
 
 class HomeRecordRequest(Message):
@@ -28,14 +39,22 @@ class HomeScreen(Screen[None]):
     BINDINGS = HOME_BINDINGS
 
     def compose(self):
-        with Vertical(id="home-frame"):
-            yield Static("liscribe", id="home-title")
-            yield Static("Listen & transcribe locally", id="home-subtitle")
-            yield Button("^r  Record", id="btn-record")
-            yield Button("^p  Preferences", id="btn-preferences")
-            yield Button("^t  Transcripts", id="btn-transcripts")
-            yield Static("", id="home-spacer")
-            yield Static("^c  Quit", id="home-quit")
+        with Vertical(classes="screen-frame"):
+            with Vertical(classes="top-bar hero"):
+                with Horizontal(classes="version-row"):
+                    yield Static(f"v{__version__}", classes="version home-version")
+                with Horizontal(classes="title-row"):
+                    yield Static(_render_brand(), classes="brand home-brand")
+                with Horizontal(classes="subtitle-row"):
+                    yield Static("Listen & transcribe locally", classes="tagline home-tagline")
+            with Horizontal(classes="screen-body"):
+                yield Button("^r  Record", id="btn-record", classes="btn primary")
+            with Horizontal(classes="screen-body-footer"):
+                yield Button("^t  Transcripts", id="btn-transcripts", classes="btn secondary inline")
+                yield Static("", classes="row-spacer")
+                yield Button("^p  Preferences", id="btn-preferences", classes="btn secondary inline")               
+                yield Static("", classes="row-spacer")
+                yield Button("^c  Quit", id="btn-quit", classes="btn danger inline")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
@@ -45,6 +64,8 @@ class HomeScreen(Screen[None]):
             self.action_preferences()
         elif bid == "btn-transcripts":
             self.action_transcripts()
+        elif bid == "btn-quit":
+            self.action_quit()
 
     def action_record(self) -> None:
         self.post_message(HomeRecordRequest())

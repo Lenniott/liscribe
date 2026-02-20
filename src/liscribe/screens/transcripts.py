@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from textual.containers import Vertical, ScrollableContainer
+from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.widgets import Button, Static
 
 from liscribe.config import load_config
@@ -17,12 +17,14 @@ class TranscriptsScreen(BackScreen):
     """List transcripts; each row has copy to clipboard."""
 
     def compose(self):
-        with Vertical(id="home-frame"):
-            yield Static("liscribe", id="home-title")
-            yield Static("Transcripts", id="home-subtitle")
-            with ScrollableContainer(id="transcripts-list"):
-                pass  # filled in on_mount
-            yield Button("Back to Home", id="btn-back")
+        with Vertical(classes="screen-frame"):
+            with Horizontal(classes="top-bar compact"):
+                yield Static("liscribe", classes="brand")
+                yield Static("Transcripts", classes="top-bar-section")
+            with Vertical(classes="screen-body"):
+                with ScrollableContainer(id="transcripts-list", classes="scroll-fill"):
+                    pass  # filled in on_mount
+                yield Button("Back to Home", id="btn-back", classes="btn secondary")
 
     def on_mount(self) -> None:
         self._refresh()
@@ -78,4 +80,4 @@ class TranscriptRow(Vertical):
         row_id = self.path.stem
         self.id = f"row-{row_id}"
         yield Static(f"{self.date_str}   {self.path.name}", id=f"label-{row_id}")
-        yield Button("Copy to clipboard", id=f"copy-{row_id}")
+        yield Button("Copy to clipboard", id=f"copy-{row_id}", classes="btn secondary inline")
