@@ -69,6 +69,10 @@ DEFAULTS: dict[str, dict[str, Any]] = {
         "value": "rec",
         "description": "Command alias/name displayed in help text and messages. Change this if you use a different alias (e.g., 'scrib', 'rec').",
     },
+    "open_transcript_app": {
+        "value": "cursor",
+        "description": "Command used by the TUI 'Open transcript' button (e.g. 'code', 'code -r', 'default'). Use 'default' to open with the system default app.",
+    },
 }
 
 

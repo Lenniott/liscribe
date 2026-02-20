@@ -422,7 +422,12 @@ class LiscribeApp(App[None]):
             and (wav_path_obj.parent / "speaker.wav").exists()
             and (wav_path_obj.parent / "session.json").exists()
         )
-        output_dir = self._folder or str(Path(wav_path).parent)
+        if self._folder:
+            output_dir = self._folder
+        elif dual_source_mode:
+            output_dir = str(wav_path_obj.parent.parent)
+        else:
+            output_dir = str(wav_path_obj.parent)
         self.push_screen(
             TranscribingScreen(
                 wav_path=wav_path,

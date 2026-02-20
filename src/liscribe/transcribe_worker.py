@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sys
+import time
 from pathlib import Path
 
 from liscribe.config import load_config
@@ -92,18 +93,47 @@ def main() -> None:
     suppress_mic_bleed = bool(cfg.get("suppress_mic_bleed_duplicates", True))
     bleed_similarity_threshold = float(cfg.get("mic_bleed_similarity_threshold", 0.62))
 
+    progress_start = time.perf_counter()
+
+    def emit_progress(progress: float, stage: str, info: dict | None = None) -> None:
+        progress = max(0.0, min(1.0, float(progress)))
+        elapsed = max(0.0, time.perf_counter() - progress_start)
+        eta_remaining = (elapsed * (1.0 - progress) / progress) if progress > 0 else None
+        payload = {
+            "progress": progress,
+            "stage": stage,
+            "elapsed_sec": elapsed,
+            "eta_remaining_sec": eta_remaining,
+        }
+        if info:
+            payload.update({
+                "segment_index": info.get("segment_index"),
+                "total_estimated": info.get("total_estimated"),
+            })
+        print(f"PROGRESS:{json.dumps(payload, separators=(',', ':'))}", flush=True)
+
+    emit_progress(0.0, "loading-model")
+
     try:
         model = load_model(model_size)
         if dual_session:
+            def mic_progress(p: float, info: dict | None = None) -> None:
+                emit_progress(p * 0.5, "transcribing-mic", info)
+
+            def speaker_progress(p: float, info: dict | None = None) -> None:
+                emit_progress(0.5 + (p * 0.5), "transcribing-speaker", info)
+
             mic_result = transcribe(
                 str(dual_session["mic_audio_path"]),
                 model=model,
                 model_size=model_size,
+                on_progress=mic_progress,
             )
             speaker_result = transcribe(
                 str(dual_session["speaker_audio_path"]),
                 model=model,
                 model_size=model_size,
+                on_progress=speaker_progress,
             )
             result = build_merged_transcription_result(
                 mic_result=mic_result,
@@ -115,7 +145,13 @@ def main() -> None:
                 model_name=model_size,
             )
         else:
-            result = transcribe(str(wav_path), model=model, model_size=model_size)
+            result = transcribe(
+                str(wav_path),
+                model=model,
+                model_size=model_size,
+                on_progress=lambda p, info=None: emit_progress(p, "transcribing", info),
+            )
+        emit_progress(1.0, "saving")
     except Exception as e:
         write_error(str(e))
         sys.exit(1)

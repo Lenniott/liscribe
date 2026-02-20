@@ -346,6 +346,58 @@ ModalScreen {
     color: $text-muted;
 }
 
+#transcribing-over,
+#transcribing-under {
+    width: 100%;
+    align: left middle;
+    padding: 0;
+}
+
+#transcribing-stage,
+#transcribing-percent {
+    width: auto;
+}
+
+#transcribing-file,
+#transcribing-time {
+    width: 1fr;
+    content-align: right middle;
+    text-align: right;
+}
+
+#transcribing-file {
+    color: $text-muted;
+}
+
+#transcribing-blocks {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+#transcribing-under {
+    margin-bottom: 1;
+}
+
+#transcribing-footer {
+    width: 100%;
+    height: auto;
+    padding: 0 1;
+}
+
+#btn-open-transcript {
+    background: $primary;
+    color: $text;
+}
+
+#btn-open-transcript:hover {
+    background: $secondary;
+}
+
+#btn-open-transcript:disabled {
+    background: $surface;
+    color: $text-muted;
+}
+
 .scroll-fill {
     height: 1fr;
     min-height: 4;
