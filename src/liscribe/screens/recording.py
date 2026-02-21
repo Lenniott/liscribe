@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import atexit
 import time
 from typing import Any
 
@@ -12,6 +13,7 @@ from textual.screen import Screen
 from textual.widgets import Button, Input, Static
 
 from liscribe.config import load_config
+from liscribe.screens.top_bar import TopBar
 from liscribe.screens.base import RECORDING_BINDINGS
 from liscribe.notes import Note, NoteCollection
 from liscribe.platform_setup import get_current_output_device, set_output_device
@@ -54,33 +56,33 @@ class RecordingScreen(Screen[RecordingResult]):
         self._exit_error_message: str | None = None
 
     def compose(self):
-        with Vertical(id="app-frame"):
-            with Horizontal(id="top-bar", classes="top-bar compact"):
+        with Vertical(classes="screen-frame large-container"):
+            with TopBar(variant="hero", section="Recording"):
                 yield Static("", id="status-text")
-                with Horizontal(id="top-bar-buttons"):
-                    yield Button("^o Speaker", id="btn-speaker", classes="btn secondary inline")
-                    yield Button("^l Mic", id="btn-mic", classes="btn secondary inline")
-
-            yield Static("Mic: —", id="mic-bar")
-
-            with Vertical(id="waveform-container"):
-                yield Static("", id="waveform")
-                yield Static("Speaker", id="waveform-speaker-label")
-                yield Static("", id="waveform-speaker")
-
-            with Vertical(id="notes-container"):
-                with ScrollableContainer(id="notes-scroll"):
-                    yield Static("", id="notes-log")
-                yield Static(
-                    "Notes are added to the transcript as footnotes.",
-                    id="notes-help",
-                )
-                yield Input(placeholder="Type a note, press Enter...", id="note-input")
-
+            with Vertical(classes="screen-body large-container"):
+                yield Static("Mic: —", id="mic-bar")
+                with Vertical(id="waveform-container"):
+                    yield Static("", id="waveform")
+                    yield Static("Speaker", id="waveform-speaker-label")
+                    yield Static("", id="waveform-speaker")
+                with Vertical(id="notes-container"):
+                    with ScrollableContainer(classes="grow-container"):
+                        yield Static("", id="notes-log")
+                    yield Static(
+                        "Notes are added to the transcript as footnotes.",
+                        id="notes-help",
+                    )
+                    yield Input(placeholder="Type a note, press Enter...", id="note-input")
             with Horizontal(classes="screen-body-footer"):
-                yield Button("^c Back to preferences", id="btn-back", classes="btn secondary inline hug-row")
-                yield Static("", classes="spacer-row")
                 yield Button("Save", id="btn-save", classes="btn primary inline hug-row")
+                yield Static("", classes="spacer-row")
+                yield Button("^o Speaker", id="btn-speaker", classes="btn secondary inline")
+                yield Static("", classes="spacer-row")
+                yield Button("^l Mic", id="btn-mic", classes="btn secondary inline")
+                yield Static("", classes="spacer-row")
+                yield Button("^c Cancel", id="btn-back", classes="btn danger inline")
+
+
 
     def on_mount(self) -> None:
         try:
@@ -143,6 +145,7 @@ class RecordingScreen(Screen[RecordingResult]):
                 self.notify(self._exit_error_message, severity="error")
                 self.dismiss(None)
                 return
+            atexit.register(self.session._restore_audio_output)
 
         original_mic_cb = self.session._mic_callback
 
@@ -190,8 +193,11 @@ class RecordingScreen(Screen[RecordingResult]):
             dev_name = dev_info["name"]
 
         mode = " + Speaker" if self.speaker else ""
-        status = f"liscribe  ●  REC  {hrs:02d}:{mins:02d}:{secs:02d}{mode}"
-        self.query_one("#status-text", Static).update(status)
+        status = f"●  REC  {hrs:02d}:{mins:02d}:{secs:02d}{mode}"
+        try:
+            self.query_one(TopBar).status_text = status
+        except Exception:
+            pass
         self.query_one("#mic-bar", Static).update(f"Mic: {dev_name}")
 
         wave_widget = self.query_one("#waveform", Static)

@@ -6,11 +6,10 @@ _Source of truth for style: Recording Screen. Use this doc to manually test ever
 
 ## App Entry Points
 
-There are two ways to launch liscribe:
+Launch liscribe with:
 
 ```
-rec                   →  LiscribeApp (Home → Recording → Transcribing → Home)
-rec --no-ui           →  RecordingApp (direct recording TUI, no Home/Transcribing flow)
+rec  →  LiscribeApp (Home → Recording → Transcribing → Home)
 ```
 
 All workflows below assume `LiscribeApp` (the full TUI shell, started with `rec`).

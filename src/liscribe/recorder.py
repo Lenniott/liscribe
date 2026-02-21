@@ -217,6 +217,7 @@ class RecordingSession:
             set_output_device(self._original_output)
             logger.info("Restored audio output to: %s", self._original_output)
             self._original_output = None
+        atexit.unregister(self._restore_audio_output)
 
     def enable_speaker_capture(self) -> str | None:
         """Enable speaker capture mid-recording. Returns None on success, error message on failure."""

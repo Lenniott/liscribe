@@ -35,7 +35,7 @@ class HomeScreen(Screen[None]):
                 with Vertical(classes="screen-body"):
                     yield Static("", classes="spacer")
                     yield Button("^r  Record", id="btn-record", classes="btn primary")
-                    yield Static("", classes="margin-small")
+                    yield Static("")
                 with Horizontal(classes="screen-body-footer"):
                     yield Button("^t  Transcripts", id="btn-transcripts", classes="btn secondary inline")
                     yield Static("", classes="spacer-row")
