@@ -12,13 +12,15 @@ from collections import deque
 import numpy as np
 
 BLOCKS = " ▁▂▃▄▅▆▇█"
-BAR_WIDTH = 60
+
+# History length for sampling; render width is always passed by the UI (dynamic).
+DEFAULT_HISTORY_LEN = 120
 
 
 class WaveformMonitor:
     """Thread-safe audio level monitor that tracks RMS history."""
 
-    def __init__(self, max_history: int = BAR_WIDTH):
+    def __init__(self, max_history: int = DEFAULT_HISTORY_LEN):
         self._history: deque[float] = deque(maxlen=max_history)
         self._lock = threading.Lock()
         self._peak: float = 0.0
@@ -47,9 +49,12 @@ class WaveformMonitor:
 
     def render(self, width: int | None = None) -> str:
         """Render the waveform as a string of Unicode block characters.
-        If width is given, use that many characters (responsive to terminal width).
+        Width should be the display width from the UI (e.g. container width) so the
+        bar is fully dynamic. If width is missing or <= 0, returns a single space.
         """
-        w = width if width is not None and width > 0 else BAR_WIDTH
+        w = width if width is not None and width > 0 else 0
+        if w == 0:
+            return " "
         levels = self.get_levels()
         if not levels:
             return " " * w

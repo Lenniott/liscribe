@@ -142,59 +142,40 @@ Screen {
 .margin-small { margin-bottom: 1; }
 .debug-css { background: $primary; }
 .debug-css:hover { background: $secondary; }
+
 /* Recording */
 
-#mic-bar {
-    height: 1;
+.wave-label {
+    width: 30%;
+    height: 100%;
     padding: 0 1;
     color: $text-muted;
+    align: left middle;
 }
 
-#waveform-container {
+.waveform {
     width: 100%;
-    padding: 0 1;
-}
-
-#waveform-speaker-label {
-    color: $text-muted;
-}
-
-#waveform,
-#waveform-speaker {
-    width: 100%;
-    height: 3;
     background: $surface;
     border: solid $accent;
+    align: center middle;
 }
 
-#waveform-speaker,
-#waveform-speaker-label {
+.top-container {
+    width: 100%;
+    height: auto;
+    min-height: 3;
+    padding: 0 1;
+}
+
+#waveform-speaker {
     display: none;
 }
 
-.waveform-speaker-on #waveform-speaker,
-.waveform-speaker-on #waveform-speaker-label {
+.waveform-speaker-on #waveform-speaker {
     display: block;
 }
 
-#notes-container {
-    height: 1fr;
-    min-height: 5;
-    padding: 0 1;
-}
 
-#notes-help {
-    color: $text-muted;
-}
-
-#notes-log { height: auto; }
-
-#note-input {
-    margin-bottom: 1;
-    border: solid $secondary;
-}
-
-#note-input:focus { border: solid $primary; }
 
 /* Transcribing */
 

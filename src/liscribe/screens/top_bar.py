@@ -54,20 +54,25 @@ class TopBar(Vertical):
     }
     TopBar.compact .top-bar-compact-row {
         display: block;
+        background: $accent;
+        padding: 0 1;
+        color: $text;
     }
 
-    /* Inline slot for dynamic content */
-    TopBar .top-bar-inline-slot,
-    TopBar .top-bar-inline-slot > *,
-    TopBar #top-bar-inline-status,
-    TopBar #status-text {
-        width: auto;
-        min-width: 0;
-    }
+    /* Inline slot for dynamic content (recording status, etc.) */
     TopBar .top-bar-inline-slot {
         height: 1;
         align: left middle;
         background: $accent;
+        width: auto;
+        min-width: 0;
+        padding: 0 1;
+    }
+    TopBar .top-bar-inline-slot > *,
+    TopBar #top-bar-inline-content {
+        width: auto;
+        min-width: 0;
+        color: $text;
     }
 
     TopBar .container { height: auto; }
@@ -94,6 +99,18 @@ class TopBar(Vertical):
         align: right middle;
         text-align: right;
         color: $text-muted;
+    }
+    TopBar .compact-logo {
+        width: auto;
+        align: left middle;
+        text-align: left;
+        color: $text;
+    }
+    TopBar .compact-section {
+        width: auto;
+        align: right middle;
+        text-align: right;
+        color: $text;
     }
     """
 
@@ -155,7 +172,7 @@ class TopBar(Vertical):
     def _initialize_top_bar(self) -> None:
         self._adopt_inline_children()
         self._refresh_compact_state()
-        self.watch_status_text()
+        self.watch_status_text(self.status_text)
 
     def _refresh_compact_state(self) -> None:
         """Refresh mode when terminal height or width changes, even if this widget didn't resize."""
@@ -195,18 +212,20 @@ class TopBar(Vertical):
             child.remove()
             inline_slot.mount(child)
 
-    def watch_status_text(self) -> None:
-        """Update inline status text, preferring a slotted #status-text child if present."""
-        target: Static | None = None
+    def watch_status_text(self, value: str = "") -> None:
+        """Update the inline slot content."""
         try:
-            target = self.query_one("#status-text", Static)
+            text = value if value != "" else self.status_text
+            target = self.query_one("#top-bar-inline-content", Static)
+            target.update(text or "")
+            target.refresh(layout=True)
         except Exception:
-            try:
-                target = self.query_one("#top-bar-inline-status", Static)
-            except Exception:
-                target = None
-        if target is not None:
-            target.update(self.status_text or "")
+            pass
+
+    def set_inline_text(self, value: str) -> None:
+        """Public helper for screens that want to show dynamic compact-row status."""
+        self.status_text = value or ""
+        self.watch_status_text(self.status_text)
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="top-bar-hero top-bar-internal"):
@@ -221,11 +240,10 @@ class TopBar(Vertical):
                 classes="subtitle",
             )
         with Horizontal(classes="top-bar-compact-row top-bar-internal"):
-            yield Static("liscribe", classes="brand top-bar-internal")
+            yield Static("liscribe", classes="compact-logo")
             with Horizontal(
-                id="top-bar-inline-slot",
-                classes="top-bar-inline-slot top-bar-internal",
+                id="top-bar-inline-slot", classes="top-bar-inline-slot"
             ):
-                yield Static("", id="top-bar-inline-status", classes="top-bar-internal")
-            yield Static("", classes="spacer-x top-bar-internal")
-            yield Static(self._section or "", classes="top-bar-section top-bar-internal")
+                yield Static("", id="top-bar-inline-content")
+            yield Static("", classes="spacer-x")
+            yield Static(self._section or "", classes="compact-section")

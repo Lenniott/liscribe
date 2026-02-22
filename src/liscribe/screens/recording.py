@@ -57,22 +57,18 @@ class RecordingScreen(Screen[RecordingResult]):
 
     def compose(self):
         with Vertical(classes="screen-frame large-container"):
-            with TopBar(variant="hero", section="Recording"):
-                yield Static("", id="status-text")
-            with Vertical(classes="screen-body large-container"):
-                yield Static("Mic: —", id="mic-bar")
-                with Vertical(id="waveform-container"):
-                    yield Static("", id="waveform")
-                    yield Static("Speaker", id="waveform-speaker-label")
-                    yield Static("", id="waveform-speaker")
-                with Vertical(id="notes-container"):
-                    with ScrollableContainer(classes="grow-container"):
-                        yield Static("", id="notes-log")
-                    yield Static(
-                        "Notes are added to the transcript as footnotes.",
-                        id="notes-help",
-                    )
-                    yield Input(placeholder="Type a note, press Enter...", id="note-input")
+            yield TopBar(variant="compact", section="Record")
+            with Vertical(id="waveform-container", classes="top-container"):
+                yield Static("", id="waveform", classes="waveform")
+                yield Static("", id="waveform-speaker", classes="waveform")
+            with Vertical(id="notes-container", classes="screen-body"):
+                with ScrollableContainer(classes="grow-container"):
+                    yield Static("", id="notes-log")
+                yield Static(
+                    "Notes are added to the transcript as footnotes.",
+                    id="notes-help",
+                )
+                yield Input(placeholder="Type a note, press Enter...", id="note-input")
             with Horizontal(classes="screen-body-footer"):
                 yield Button("Save", id="btn-save", classes="btn btn-primary btn-inline hug-row")
                 yield Static("", classes="spacer-x")
@@ -187,22 +183,46 @@ class RecordingScreen(Screen[RecordingResult]):
 
         if self.session and self.session.device_idx is not None:
             dev_info = sd.query_devices(self.session.device_idx)
-            dev_name = dev_info["name"]
+            dev_name_full = dev_info["name"]
         else:
             dev_info = sd.query_devices(sd.default.device[0])
-            dev_name = dev_info["name"]
+            dev_name_full = dev_info["name"]
+
+        dev_name_split = dev_name_full.split()
+        if len(dev_name_split) > 2:
+            dev_name = ' '.join(dev_name_split[:2]) + '...'
+        else:
+            dev_name = dev_name_full
 
         mode = " + Speaker" if self.speaker else ""
-        status = f"●  REC  {hrs:02d}:{mins:02d}:{secs:02d}{mode}"
+        status = f" ●  REC  {hrs:02d}:{mins:02d}:{secs:02d}{mode}"
         try:
-            self.query_one(TopBar).status_text = status
+            top_bar = self.query_one(TopBar)
+            if hasattr(top_bar, "set_inline_text"):
+                top_bar.set_inline_text(status)
+            else:
+                top_bar.status_text = status
+                try:
+                    top_bar.watch_status_text(status)
+                except TypeError:
+                    top_bar.watch_status_text()
         except Exception:
             pass
-        self.query_one("#mic-bar", Static).update(f"Mic: {dev_name}")
-
         wave_widget = self.query_one("#waveform", Static)
+        wave_widget.border_title = f"Mic: {dev_name}"
+
         width = wave_widget.size.width or 0
-        bar_w = width - 2 if width > 4 else 40
+        if width <= 4:
+            # Widget may not be laid out yet; use parent content width (top-container has padding 0 1)
+            try:
+                container = wave_widget.parent
+                if container and getattr(container, "size", None) and container.size.width:
+                    width = max(0, container.size.width - 2)
+            except Exception:
+                pass
+        if width <= 4 and getattr(self, "size", None) and self.size.width:
+            width = max(0, self.size.width - 2)
+        bar_w = width if width > 4 else 40
 
         mic_bar = self.waveform.render(bar_w)
         wave_widget.update(mic_bar)
@@ -210,8 +230,16 @@ class RecordingScreen(Screen[RecordingResult]):
         if self.speaker:
             try:
                 speaker_widget = self.query_one("#waveform-speaker", Static)
+                speaker_widget.border_title = "Speaker"
                 s_width = speaker_widget.size.width or width
-                s_bar_w = s_width - 2 if s_width and s_width > 4 else bar_w
+                if s_width <= 4:
+                    try:
+                        parent = speaker_widget.parent
+                        if parent and getattr(parent, "size", None) and parent.size.width:
+                            s_width = max(0, parent.size.width - 2)
+                    except Exception:
+                        pass
+                s_bar_w = s_width if s_width and s_width > 4 else bar_w
                 speaker_bar = self.waveform_speaker.render(s_bar_w)
                 speaker_widget.update(speaker_bar)
             except Exception:
