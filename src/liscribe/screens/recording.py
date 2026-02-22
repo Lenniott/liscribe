@@ -74,13 +74,13 @@ class RecordingScreen(Screen[RecordingResult]):
                     )
                     yield Input(placeholder="Type a note, press Enter...", id="note-input")
             with Horizontal(classes="screen-body-footer"):
-                yield Button("Save", id="btn-save", classes="btn primary inline hug-row")
-                yield Static("", classes="spacer-row")
-                yield Button("^o Speaker", id="btn-speaker", classes="btn secondary inline")
-                yield Static("", classes="spacer-row")
-                yield Button("^l Mic", id="btn-mic", classes="btn secondary inline")
-                yield Static("", classes="spacer-row")
-                yield Button("^c Cancel", id="btn-back", classes="btn danger inline")
+                yield Button("Save", id="btn-save", classes="btn btn-primary btn-inline hug-row")
+                yield Static("", classes="spacer-x")
+                yield Button("^o Speaker", id="btn-speaker", classes="btn btn-secondary btn-inline")
+                yield Static("", classes="spacer-x")
+                yield Button("^l Mic", id="btn-mic", classes="btn btn-secondary btn-inline")
+                yield Static("", classes="spacer-x")
+                yield Button("^c Cancel", id="btn-back", classes="btn btn-danger btn-inline")
 
 
 

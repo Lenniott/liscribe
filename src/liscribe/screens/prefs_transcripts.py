@@ -7,6 +7,7 @@ from textual.widgets import Button, Input, Static
 
 from liscribe.config import load_config, save_config
 from liscribe.screens.base import BackScreen
+from liscribe.screens.top_bar import TopBar
 
 
 class PrefsTranscriptsScreen(BackScreen):
@@ -19,11 +20,9 @@ class PrefsTranscriptsScreen(BackScreen):
         open_app = str(cfg.get("open_transcript_app", "cursor") or "cursor")
 
         with Vertical(classes="screen-frame"):
-            with Horizontal(classes="top-bar compact"):
-                yield Static("liscribe", classes="brand")
-                yield Static("Transcripts", classes="top-bar-section")
+            yield TopBar(variant="compact", section="Transcripts")
             with Vertical(classes="screen-body"):
-                yield Static("", classes="spacer")
+                yield Static("", classes="spacer-y")
                 yield Static("Default save path (recordings and transcripts):")
                 yield Input(value=folder, id="save-input", placeholder="~/transcripts")
                 yield Static("", classes="margin-small")
@@ -32,7 +31,7 @@ class PrefsTranscriptsScreen(BackScreen):
                     yield Button(
                         "Deactivate" if self._use_here_default else "Activate",
                         id="here-default-btn",
-                        classes="btn secondary inline" if not self._use_here_default else "btn danger inline",
+                        classes="btn btn-secondary btn-inline" if not self._use_here_default else "btn danger inline",
                     )
                 yield Static("", classes="margin-small")
                 yield Static("When enabled, Record saves to ./docs/transcripts from the current directory.", classes="screen-body-subtitle")
@@ -41,9 +40,9 @@ class PrefsTranscriptsScreen(BackScreen):
                 yield Input(value=open_app, id="open-app-input", placeholder="cursor")
                 yield Static("", classes="margin-small")
             with Horizontal(classes="screen-body-footer"):
-                    yield Button("^c Back to preferences", id="btn-back", classes="btn secondary inline hug-row")
-                    yield Static("", classes="spacer-row")
-                    yield Button("Save", id="btn-save", classes="btn primary inline hug-row")
+                    yield Button("^c Back to preferences", id="btn-back", classes="btn btn-secondary btn-inline hug-row")
+                    yield Static("", classes="spacer-x")
+                    yield Button("Save", id="btn-save", classes="btn btn-primary btn-inline hug-row")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-back":
@@ -53,7 +52,7 @@ class PrefsTranscriptsScreen(BackScreen):
             self._use_here_default = not self._use_here_default
             btn = event.button
             btn.label = "Deactivate" if self._use_here_default else "Activate"
-            btn.classes = "btn danger inline" if self._use_here_default else "btn secondary inline"
+            btn.classes = "btn btn-danger btn-inline" if self._use_here_default else "btn btn-secondary btn-inline"
             return
         if event.button.id != "btn-save":
             return

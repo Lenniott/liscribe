@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from textual.containers import Horizontal, Vertical
+from textual.containers import Vertical
 from textual.widgets import Button, Input, Static
 
 from liscribe.config import load_config, save_config
 from liscribe.screens.base import BackScreen
+from liscribe.screens.top_bar import TopBar
 
 
 class PrefsSaveLocationScreen(BackScreen):
@@ -16,9 +17,7 @@ class PrefsSaveLocationScreen(BackScreen):
         cfg = load_config()
         folder = cfg.get("save_folder", "~/transcripts") or "~/transcripts"
         with Vertical(classes="screen-frame"):
-            with Horizontal(classes="top-bar compact"):
-                yield Static("liscribe", classes="brand")
-                yield Static("Save location", classes="top-bar-section")
+            yield TopBar(variant="compact", section="Save location")
             with Vertical(classes="screen-body"):
                 yield Static("Default save folder (recordings and transcripts):")
                 yield Input(value=folder, id="save-input", placeholder="~/transcripts")
@@ -26,9 +25,9 @@ class PrefsSaveLocationScreen(BackScreen):
                     "Use --here when starting a recording to save to ./docs/transcripts in the current directory.",
                     classes="screen-body-subtitle",
                 )
-                yield Button("Save", id="btn-save", classes="btn primary")
-                yield Static("", classes="spacer")
-                yield Button("Back to Preferences", id="btn-back", classes="btn secondary")
+                yield Button("Save", id="btn-save", classes="btn btn-primary")
+                yield Static("", classes="spacer-y")
+                yield Button("Back to Preferences", id="btn-back", classes="btn btn-secondary")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-back":

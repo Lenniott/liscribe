@@ -1,3 +1,5 @@
+/* Global */
+
 Screen {
     align: center middle;
     background: $background;
@@ -6,143 +8,141 @@ Screen {
 #app-frame {
     width: 100%;
     height: 100%;
-    max-width: 100;      /* optional: cap for very wide terminals */
-    max-height: 40;      /* optional: cap for very tall terminals */
+    max-width: 100;
+    max-height: 40;
     border: round $accent;
-    padding: 0 0;
     background: $surface;
     overflow: hidden;
     overflow-y: scroll;
     overflow-x: hidden;
-
 }
 
-/* Top bar */
+/* Spacers */
 
-.top-bar.compact {
+.spacer-y {
+    height: 1fr;
+    min-height: 1;
+}
+
+.spacer-x {
+    width: 1fr;
+    min-width: 1;
+}
+
+/* Strips - 1-height horizontal bars */
+
+.strip {
+    width: 100%;
     height: 1;
+    padding: 0 1;
+    align: left middle;
+}
+
+.strip-header {
+    background: $accent;
+    color: $text;
     margin-bottom: 1;
 }
 
+.strip-footer {
+    background: $surface;
+    color: $text-muted;
+}
 
-.top-bar Static {
+/* Buttons - height: 1 default */
+
+.btn {
+    height: 1;
+    width: auto;
+    margin-bottom: 0;
+    padding: 0 1;
+    background: $surface;
     color: $text;
-    align: center middle;
-}
-
-.title-row {
-    width: 100%;
-    height: auto;
-    
-}
-
-.version-row {
-    width: 100%;
-    height: auto;
-    align: center middle;
-}
-
-.subtitle-row {
-    width: 100%;
-    height: auto;
-    align: center middle;
-    padding-bottom: 1;
-}
-
-.brand {
     text-style: bold;
+    border: none;
 }
 
-.top-bar.compact .brand {
-    width: 1fr;
+.btn-primary { background: $primary; }
+.btn-primary:hover { background: $secondary; }
+
+.btn-secondary { background: $surface; }
+.btn-secondary:hover { background: $secondary; }
+
+.btn-danger { background: $surface; }
+.btn-danger:hover { background: $error; }
+
+.btn-block {
+    width: 100%;
+    height: 3;
+    min-width: 10;
+}
+
+.btn-inline {
+    background: transparent;
+    border: none;
+}
+
+.btn-inline:hover { color: $text; }
+
+.btn:focus { text-style: bold underline; }
+
+.btn:disabled {
+    background: $surface;
+    color: $text-muted;
+    border: solid $secondary;
     text-style: none;
 }
 
-.tagline {
-    color: $text-muted;
-    align: center middle;
-}
+/* Screen structure */
 
-.version,
-.top-bar-section {
-    width: auto;
-    content-align: right middle;
-}
-
-.screen-body-footer {
-    dock: bottom;
-    background: $surface;
+.screen-frame {
     width: 100%;
-    height:1;
+    height: 100%;
+    min-height: 4;
+    border: round $accent;
+    background: $surface;
+}
+
+.screen-body {
+    width: 100%;
+    height: 1fr;
+    min-height: 3;
     align: center top;
     padding: 0 1;
 }
 
-.row {
-    width: 1fr;
-    height: auto;
+.screen-body-footer {
+    background: $surface;
+    width: 100%;
+    height: 1;
     align: left middle;
     padding: 0 1;
-    background: $primary;
-    align: left middle;
 }
 
-.center {
+.screen-body-title {
     width: 100%;
-    height: auto;
-    align: center middle;
-    text-align: center;
-}
-
-.row Button {
-    width: auto;
-    height: auto;
-    margin-bottom:0;
-}
-
-.hug-row {
-    width: 1fr;
-}
-
-.input-inline {
-    width: 1fr;
-    height: auto;
-    border: solid $secondary;
-    padding: 0 0;
-}
-
-#status-text {
-    width: 1fr;
-}
-
-#top-bar-buttons {
-    width: auto;
-    height: 1;
-    align: right middle;
-    column-span: 1;
-}
-
-#top-bar-buttons Button {
-    background: transparent;
-    color: $text;
-    border: none;
     text-style: bold;
-    width: auto;
-    max-width: 16;
-    min-width: 3;
+    margin-bottom: 1;
 }
 
-#top-bar-buttons Button:hover {
-    background: $surface;
-    text-style: bold underline;
+.screen-body-subtitle {
+    margin-bottom: 1;
+    color: $text-muted;
 }
 
-#top-bar-buttons Button:focus {
-    background: $surface;
-    text-style: bold underline;
+.large-container { min-height: 20; }
+
+.scroll-fill {
+    height: 1fr;
+    min-height: 4;
 }
 
-/* Mic bar */
+.hug-row { width: 1fr; }
+
+.margin-small { margin-bottom: 1; }
+.debug-css { background: $primary; }
+.debug-css:hover { background: $secondary; }
+/* Recording */
 
 #mic-bar {
     height: 1;
@@ -150,30 +150,22 @@ Screen {
     color: $text-muted;
 }
 
-/* Waveforms */
-
 #waveform-container {
     width: 100%;
     padding: 0 1;
 }
 
-#waveform-label,
 #waveform-speaker-label {
     color: $text-muted;
-    padding-left: 0;
 }
 
 #waveform,
 #waveform-speaker {
     width: 100%;
     height: 3;
-    padding: 0;
     background: $surface;
     border: solid $accent;
-    margin-top: 0;
 }
-
-/* Speaker visibility toggling */
 
 #waveform-speaker,
 #waveform-speaker-label {
@@ -185,8 +177,6 @@ Screen {
     display: block;
 }
 
-/* Notes */
-
 #notes-container {
     height: 1fr;
     min-height: 5;
@@ -195,73 +185,123 @@ Screen {
 
 #notes-help {
     color: $text-muted;
-    margin-bottom: 0;
 }
 
-#notes-scroll {
-    height: 1fr;
-    min-height: 3;
-}
-
-#notes-log {
-    height: auto;
-}
+#notes-log { height: auto; }
 
 #note-input {
     margin-bottom: 1;
     border: solid $secondary;
 }
 
-#note-input:focus {
-    border: solid $primary;
+#note-input:focus { border: solid $primary; }
+
+/* Transcribing */
+
+#transcribing-over,
+#transcribing-under {
+    width: 100%;
+    align: left middle;
+    padding: 0;
 }
 
-/* Footer */
+#transcribing-stage,
+#transcribing-percent { width: auto; }
 
-#footer-bar {
+#transcribing-file,
+#transcribing-time {
+    width: 1fr;
+    content-align: right middle;
+    text-align: right;
+}
+
+#transcribing-file { color: $text-muted; }
+
+#transcribing-blocks {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+#transcribing-under { margin-bottom: 1; }
+
+/* Transcripts */
+
+.transcript-row {
+    width: 100%;
+    height: auto;
+    align: left middle;
+}
+
+.transcript-label { width: 1fr; }
+
+.transcript-copy {
+    width: auto;
+    min-width: 20;
+}
+
+/* Preferences - whisper models */
+
+.model-row {
     width: 100%;
     height: 1;
+    align: left middle;
+}
+
+.model-header-row {
+    color: $text-muted;
     padding: 0 1;
+}
+
+.model-col-mark {
+    width: 3;
+    content-align: center middle;
+    text-align: center;
+}
+
+.model-col-model {
+    width: 18;
+    content-align: left middle;
+    text-align: left;
+}
+
+.model-col-action {
+    width: 12;
+    content-align: left middle;
+    text-align: left;
+}
+
+.prefs-language-row {
+    width: 100%;
+    height: auto;
+    min-height: 3;
     align: left middle;
-    background: $surface;
-    color: $text-muted;
+    padding: 0 1;
 }
 
-#footer-bar Button {
-    color: $text-muted;
-    background: transparent;
-    border: none;
-    text-style: none;
-}
-
-#footer-bar Button:hover {
-    background: $background;
-    color: $text;
-    text-style: none;
-}
-
-#footer-bar Button:focus {
-    background: $background;
-    color: $text;
-    text-style: none;
-}
-
-#btn-footer-save {
-    background: $primary;
-    width: auto;
-    align: left middle;
-}
-
-
-#footer-bar-spacer {
+#language-input {
     width: 1fr;
-    min-width: 5;
+    min-width: 20;
+    border: solid $secondary;
 }
 
-#btn-footer-cancel {
-    width: auto;
-    align: right middle;
-    background: transparent;
+#language-input:focus { border: solid $primary; }
+
+/* Preferences - row layout */
+
+.row {
+    width: 100%;
+    height: auto;
+    align: left middle;
+    padding: 0 1;
+}
+
+/* Home */
+
+.home-brand,
+.home-tagline {
+    width: 100%;
+    content-align: center middle;
+    text-align: center;
 }
 
 /* Modals */
@@ -270,8 +310,6 @@ ModalScreen {
     align: center middle;
     background: $boost;
 }
-
-/* Mic select modal */
 
 #mic-select-container {
     align: center middle;
@@ -295,17 +333,12 @@ ModalScreen {
     max-height: 15;
 }
 
-/* Cancel confirm modal */
-
 #cancel-confirm-container {
     width: 55;
     min-width: 50;
     padding: 1 2;
     height: auto;
-    margin-top: 1;
-    margin-left: 1;
-    margin-right: 1;
-    margin-bottom: 1;
+    margin: 1;
     background: $surface;
     border: round $accent;
 }
@@ -316,256 +349,4 @@ ModalScreen {
     text-align: center;
 }
 
-#cancel-confirm-list {
-    min-width: 1fr;
-}
-
-/* Shared full-width screens (Home, Preferences, Transcripts, Help, Devices, Transcribing, prefs) */
-
-
-.screen-frame {
-    width: 100%;
-    height: 100%;
-    min-height: 4;
-    border: round $accent;
-    padding: 0 0;
-    background: $surface;
-}
-
-.screen-body {
-    width: 100%;
-    height: 1fr;
-    min-height: 3;
-    align: center top;
-    padding: 0 1;
-}
-
-.large-container {
-    min-height: 20;
-}
-
-.medium-container {
-    min-height: 10;
-}
-
-.screen-body-title {
-    width: 100%;
-    text-style: bold;
-    margin-bottom: 1;
-}
-
-.screen-body-subtitle {
-    margin-bottom: 1;
-    color: $text-muted;
-}
-
-#transcribing-over,
-#transcribing-under {
-    width: 100%;
-    align: left middle;
-    padding: 0;
-}
-
-#transcribing-stage,
-#transcribing-percent {
-    width: auto;
-}
-
-#transcribing-file,
-#transcribing-time {
-    width: 1fr;
-    content-align: right middle;
-    text-align: right;
-}
-
-#transcribing-file {
-    color: $text-muted;
-}
-
-#transcribing-blocks {
-    width: 100%;
-    margin-bottom: 1;
-}
-
-#transcribing-under {
-    margin-bottom: 1;
-}
-
-#transcribing-footer {
-    width: 100%;
-    height: auto;
-    padding: 0 1;
-}
-
-#btn-open-transcript {
-    background: $primary;
-    color: $text;
-}
-
-#btn-open-transcript:hover {
-    background: $secondary;
-}
-
-#btn-open-transcript:disabled {
-    background: $surface;
-    color: $text-muted;
-}
-
-.scroll-fill {
-    height: 1fr;
-    min-height: 4;
-}
-
-.transcript-row {
-    width: 100%;
-    height: auto;
-    align: left middle;
-}
-
-.transcript-label {
-    width: 1fr;
-}
-
-.transcript-copy {
-    width: auto;
-    min-width: 20;
-}
-
-.model-row {
-    width: 100%;
-    height: 1;
-    align: left middle;
-}
-
-.model-header-row {
-    color: $text-muted;
-    padding: 0 1;
-}
-
-.model-col-mark {
-    width: 3;
-    content-align: center middle;
-    text-align: center;
-}
-
-.model-col-model {
-    width: 18;
-}
-
-.btn.inline.model-col-model {
-    width: 18;
-    content-align: left middle;
-    text-align: left;
-}
-
-.model-col-action {
-    width: 12;
-}
-
-.btn.inline.model-col-action {
-    width: 12;
-    content-align: left middle;
-    text-align: left;
-}
-
-.prefs-language-row {
-    width: 100%;
-    height: auto;
-    min-height: 3;
-    align: left middle;
-    padding: 0 1;
-}
-
-.margin-small {
-    margin-bottom: 1;
-}
-
-#language-input {
-    width: 1fr;
-    min-width: 20;
-    border: solid $secondary;
-}
-
-#language-input:focus {
-    border: solid $primary;
-}
-
-.spacer {
-    height: 1fr;
-}
-
-
-.spacer-row {
-    width: 1fr;
-    min-width: 1;
-}
-
-.home-brand,
-.home-tagline,
-.home-version {
-    width: 100%;
-    content-align: center middle;
-    text-align: center;
-}
-
-.btn {
-    width: auto;
-    height: auto;
-    margin-bottom:0;
-    background: $surface;
-    color: $text;
-    text-style: bold;
-}
-
-.btn.primary {
-    background: $primary;
-    width: 100%;
-    min-width: 10;
-    max-width: 100%;
-}
-
-.btn:hover.primary {
-    background: $secondary;
-}
-
-.btn:hover.secondary {
-    background: $secondary;
-}
-
-.btn:hover.danger {
-    background: $error;
-}
-
-.btn.inline {
-    width: auto;
-    height: auto;
-    align: left middle;
-    border: none;
-    padding: 0 1;
-    background: transparent;
-}
-
-.btn.inline:hover {
-    color: $text;
-    border: none;
-}
-
-.btn:focus {
-    text-style: bold underline;
-}
-
-.btn:disabled {
-    background: $surface;
-    color: $text-muted;
-    border: solid $secondary;
-    text-style: none;
-}
-
-#btn-save-lang {
-    background: $primary;
-    color: $text;
-}
-
-#btn-save-lang:hover {
-    background: $secondary;
-}
+#cancel-confirm-list { min-width: 1fr; }

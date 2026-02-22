@@ -11,6 +11,7 @@ from textual.widgets import Button, Static
 from liscribe.config import load_config
 from liscribe.output import copy_to_clipboard
 from liscribe.screens.base import BackScreen
+from liscribe.screens.top_bar import TopBar
 
 
 class TranscriptsScreen(BackScreen):
@@ -18,13 +19,11 @@ class TranscriptsScreen(BackScreen):
 
     def compose(self):
         with Vertical(classes="screen-frame"):
-            with Horizontal(classes="top-bar compact"):
-                yield Static("liscribe", classes="brand")
-                yield Static("Transcripts", classes="top-bar-section")
+            yield TopBar(variant="compact", section="Transcripts")
             with Vertical(classes="screen-body"):
                 with ScrollableContainer(id="transcripts-list", classes="scroll-fill"):
                     pass  # filled in on_mount
-            yield Button("^c Back Home", id="btn-back", classes="btn secondary inline")
+            yield Button("^c Back Home", id="btn-back", classes="btn btn-secondary btn-inline")
 
     def on_mount(self) -> None:
         self._refresh()
@@ -80,4 +79,4 @@ class TranscriptRow(Horizontal):
         row_id = self.path.stem
         self.id = f"row-{row_id}"
         yield Static(f"{self.date_str}   {self.path.name}", id=f"label-{row_id}", classes="transcript-label")
-        yield Button("Copy to clipboard", id=f"copy-{row_id}", classes="btn secondary inline transcript-copy")
+        yield Button("Copy to clipboard", id=f"copy-{row_id}", classes="btn btn-secondary btn-inline transcript-copy")

@@ -5,7 +5,8 @@ from __future__ import annotations
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Static
 
-from liscribe.screens.base import BackScreen, __version__, render_brand
+from liscribe.screens.base import BackScreen
+from liscribe.screens.top_bar import TopBar
 
 
 class PreferencesHubScreen(BackScreen):
@@ -13,29 +14,21 @@ class PreferencesHubScreen(BackScreen):
 
     def compose(self):
         with Vertical(classes="screen-frame"):
-            with Vertical(classes="top-bar hero"):
-                with Horizontal(classes="row"):
-                    yield Static(f"v{__version__}", classes="version")
-                    yield Static("", classes="spacer-row")
-                    yield Static("Preferences", classes="top-bar-section")
-                with Horizontal(classes="title-row"):
-                    yield Static(render_brand(), classes="brand home-brand")
-                with Horizontal(classes="subtitle-row"):
-                    yield Static("It listens & transcribes locally", classes="tagline home-tagline")
+            yield TopBar(variant="hero", section="Preferences")
             with Vertical(classes="screen-body"):
-                yield Static("", classes="spacer")  
+                yield Static("", classes="spacer-y")  
                 with Horizontal(classes="row"):
-                    yield Button("General", id="btn-general", classes="btn secondary inline hug-row")
-                    yield Static("", classes="spacer-row")
-                    yield Button("Transcripts", id="btn-transcripts", classes="btn secondary inline hug-row")
-                    yield Static("", classes="spacer-row")
-                    yield Button("Whisper", id="btn-whisper", classes="btn secondary inline hug-row")
-                    yield Static("", classes="spacer-row")
-                    yield Button("Dependencies", id="btn-deps", classes="btn secondary inline hug-row")
+                    yield Button("General", id="btn-general", classes="btn btn-secondary btn-inline hug-row")
+                    yield Static("", classes="spacer-x")
+                    yield Button("Transcripts", id="btn-transcripts", classes="btn btn-secondary btn-inline hug-row")
+                    yield Static("", classes="spacer-x")
+                    yield Button("Whisper", id="btn-whisper", classes="btn btn-secondary btn-inline hug-row")
+                    yield Static("", classes="spacer-x")
+                    yield Button("Dependencies", id="btn-deps", classes="btn btn-secondary btn-inline hug-row")
                 yield Static("", classes="margin-small")                
             with Horizontal(classes="screen-body-footer"):
-                yield Button("^c Back to home", id="btn-back", classes="btn secondary inline hug-row")
-                yield Static("", classes="spacer-row")  
+                yield Button("^c Back to home", id="btn-back", classes="btn btn-secondary btn-inline hug-row")
+                yield Static("", classes="spacer-x")  
 
 
     def on_button_pressed(self, event: Button.Pressed) -> None:

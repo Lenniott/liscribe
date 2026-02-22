@@ -19,6 +19,7 @@ from textual.widgets import Button, Static
 
 from liscribe.config import load_config
 from liscribe.notes import Note
+from liscribe.screens.top_bar import TopBar
 from liscribe.transcriber import is_model_available
 
 
@@ -55,9 +56,7 @@ class TranscribingScreen(Screen[None]):
 
     def compose(self):
         with Vertical(classes="screen-frame"):
-            with Horizontal(classes="top-bar compact"):
-                yield Static("liscribe", classes="brand")
-                yield Static("transcription", classes="top-bar-section")
+            yield TopBar(variant="compact", section="Transcription")
             with Vertical(classes="screen-body"):
                 yield Static("Transcribing", id="transcribing-title", classes="screen-body-title")
                 with Horizontal(id="transcribing-over", classes="row"):
@@ -67,11 +66,11 @@ class TranscribingScreen(Screen[None]):
                 with Horizontal(id="transcribing-under", classes="row"):
                     yield Static("0%", id="transcribing-percent")
                     yield Static("--:--:--", id="transcribing-time")
-                yield Static("", classes="spacer")
+                yield Static("", classes="spacer-y")
             with Horizontal(id="transcribing-footer", classes="screen-body-footer"):
-                yield Button("Open transcript", id="btn-open-transcript", classes="btn primary inline hug-row", disabled=True)
-                yield Static("", classes="spacer-row")
-                yield Button("^c Back to home", id="btn-back", classes="btn secondary inline hug-row", disabled=True)
+                yield Button("Open transcript", id="btn-open-transcript", classes="btn btn-primary btn-inline hug-row", disabled=True)
+                yield Static("", classes="spacer-x")
+                yield Button("^c Back to home", id="btn-back", classes="btn btn-secondary btn-inline hug-row", disabled=True)
 
     def on_mount(self) -> None:
         self._render_progress()

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.containers import ScrollableContainer, Vertical
 from textual.widgets import Button, Static
 
 from liscribe.recorder import list_input_devices
 from liscribe.screens.base import BackScreen
+from liscribe.screens.top_bar import TopBar
 
 
 class DevicesScreen(BackScreen):
@@ -14,13 +15,11 @@ class DevicesScreen(BackScreen):
 
     def compose(self):
         with Vertical(classes="screen-frame"):
-            with Horizontal(classes="top-bar compact"):
-                yield Static("liscribe", classes="brand")
-                yield Static("Input devices", classes="top-bar-section")
+            yield TopBar(variant="compact", section="Input devices")
             with Vertical(classes="screen-body"):
                 with ScrollableContainer(id="devices-list", classes="scroll-fill"):
                     yield Static("", id="devices-text")
-                yield Button("Back to Home", id="btn-back", classes="btn secondary")
+                yield Button("Back to Home", id="btn-back", classes="btn btn-secondary")
 
     def on_mount(self) -> None:
         try:

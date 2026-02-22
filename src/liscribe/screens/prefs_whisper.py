@@ -7,6 +7,7 @@ from textual.widgets import Button, Input, Static
 
 from liscribe.config import load_config, save_config
 from liscribe.screens.base import BackScreen
+from liscribe.screens.top_bar import TopBar
 from liscribe.transcriber import is_model_available, load_model, remove_model
 
 WHISPER_MODELS = ["tiny", "base", "small", "medium", "large"]
@@ -18,11 +19,9 @@ class PrefsWhisperScreen(BackScreen):
     def compose(self):
         cfg = load_config()
         with Vertical(classes="screen-frame"):
-            with Horizontal(classes="top-bar compact"):
-                yield Static("liscribe", classes="brand")
-                yield Static("whisper", classes="top-bar-section")
+            yield TopBar(variant="compact", section="Whisper")
             with Vertical(classes="screen-body"):
-                yield Static("", classes="spacer")
+                yield Static("", classes="spacer-y")
                 with Vertical(classes="prefs-language-row"):
                     yield Static("Language (e.g. en, fr, auto):")
                     yield Input(
@@ -39,9 +38,9 @@ class PrefsWhisperScreen(BackScreen):
                     pass
                 yield Static("", classes="margin-small")
             with Horizontal(classes="screen-body-footer"):
-                yield Button("^c Back to preferences", id="btn-back", classes="btn secondary inline hug-row")
-                yield Static("", classes="spacer-row")
-                yield Button("Save", id="btn-save-lang", classes="btn primary inline hug-row")
+                yield Button("^c Back to preferences", id="btn-back", classes="btn btn-secondary btn-inline hug-row")
+                yield Static("", classes="spacer-x")
+                yield Button("Save", id="btn-save-lang", classes="btn btn-primary btn-inline hug-row")
 
 
     def on_mount(self) -> None:
@@ -59,11 +58,11 @@ class PrefsWhisperScreen(BackScreen):
 
             row = Horizontal(
                 Static(downloaded_mark, classes="model-col-mark"),
-                Button(f"{name}{default_mark}", id=f"set-{name}", classes="btn secondary inline model-col-model"),
+                Button(f"{name}{default_mark}", id=f"set-{name}", classes="btn btn-secondary btn-inline model-col-model"),
                 Button(
                     "Remove" if installed else "Download",
                     id=f"{'remove' if installed else 'download'}-{name}",
-                    classes="btn secondary inline model-col-action",
+                    classes="btn btn-secondary btn-inline model-col-action",
                 ),
                 classes="model-row",
             )
