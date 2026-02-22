@@ -49,6 +49,13 @@ Screen {
     color: $text-muted;
 }
 
+.dock-bottom { 
+    dock: bottom; 
+    height: auto;
+    padding: 0 1;
+}
+
+
 /* Buttons - height: 1 default */
 
 .btn {
@@ -105,9 +112,8 @@ Screen {
 
 .screen-body {
     width: 100%;
-    height: 1fr;
+    height: auto;
     min-height: 3;
-    align: center top;
     padding: 0 1;
 }
 
@@ -117,6 +123,8 @@ Screen {
     height: 1;
     align: left middle;
     padding: 0 1;
+    dock: bottom;
+    margin-top: 1;
 }
 
 .screen-body-title {
@@ -143,6 +151,25 @@ Screen {
 .debug-css { background: $primary; }
 .debug-css:hover { background: $secondary; }
 
+/* Inputs */
+.help-text{
+    color: $text-muted;
+    align: left middle;
+    text-align: left;
+}
+
+.text-input{
+    border: solid $secondary;
+    text-align: left;
+    padding: 0 1;
+    width: 100%;
+    height: 3;
+}
+
+.text-input:focus {
+    border: solid $primary;
+}
+
 /* Recording */
 
 .wave-label {
@@ -166,6 +193,20 @@ Screen {
     min-height: 3;
     padding: 0 1;
 }
+
+
+.notes-log {
+    width: 100%;
+    height: auto;
+    min-height: 4;
+    padding: 0 1;
+    color: $text;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: $panel;
+    dock: bottom;
+}
+
 
 #waveform-speaker {
     display: none;

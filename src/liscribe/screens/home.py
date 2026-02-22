@@ -34,14 +34,15 @@ class HomeScreen(Screen[None]):
                 yield TopBar(variant="hero", section="Home")
                 with Vertical(classes="screen-body"):
                     yield Static("", classes="spacer-y")
+                with Horizontal(classes="dock-bottom"):
                     yield Button("^r  Record", id="btn-record", classes="btn btn-primary btn-block")
                     yield Static("")
-                with Horizontal(classes="screen-body-footer"):
-                    yield Button("^t  Transcripts", id="btn-transcripts", classes="btn btn-secondary btn-inline")
-                    yield Static("", classes="spacer-x")
-                    yield Button("^p  Preferences", id="btn-preferences", classes="btn btn-secondary btn-inline")
-                    yield Static("", classes="spacer-x")
-                    yield Button("^c  Close", id="btn-quit", classes="btn btn-danger btn-inline")
+                    with Horizontal(classes="screen-body-footer"):
+                        yield Button("^t  Transcripts", id="btn-transcripts", classes="btn btn-secondary btn-inline")
+                        yield Static("", classes="spacer-x")
+                        yield Button("^p  Preferences", id="btn-preferences", classes="btn btn-secondary btn-inline")
+                        yield Static("", classes="spacer-x")
+                        yield Button("^c  Close", id="btn-quit", classes="btn btn-danger btn-inline")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id

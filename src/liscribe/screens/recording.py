@@ -58,17 +58,19 @@ class RecordingScreen(Screen[RecordingResult]):
     def compose(self):
         with Vertical(classes="screen-frame large-container"):
             yield TopBar(variant="compact", section="Record")
+            yield Static("")
             with Vertical(id="waveform-container", classes="top-container"):
                 yield Static("", id="waveform", classes="waveform")
                 yield Static("", id="waveform-speaker", classes="waveform")
-            with Vertical(id="notes-container", classes="screen-body"):
-                with ScrollableContainer(classes="grow-container"):
-                    yield Static("", id="notes-log")
+            yield Static("")
+            with Vertical(id="notes-container"):
+                with ScrollableContainer():
+                    yield Static("", id="notes-log", classes="notes-log")
                 yield Static(
                     "Notes are added to the transcript as footnotes.",
-                    id="notes-help",
+                    id="notes-help", classes="help-text dock-bottom"
                 )
-                yield Input(placeholder="Type a note, press Enter...", id="note-input")
+                yield Input(placeholder="Type a note, press Enter...", id="note-input", classes="text-input dock-bottom")
             with Horizontal(classes="screen-body-footer"):
                 yield Button("Save", id="btn-save", classes="btn btn-primary btn-inline hug-row")
                 yield Static("", classes="spacer-x")
