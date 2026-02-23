@@ -26,7 +26,7 @@ class PreferencesHubScreen(BackScreen):
                     yield Static("", classes="spacer-x")
                     yield Button("Dependencies", id="btn-deps", classes="btn btn-secondary btn-inline hug-row")
                 yield Static("", classes="margin-small")                
-            with Horizontal(classes="screen-body-footer"):
+            with Horizontal(classes="footer-container"):
                 yield Button("^c Back to home", id="btn-back", classes="btn btn-secondary btn-inline hug-row")
                 yield Static("", classes="spacer-x")  
 

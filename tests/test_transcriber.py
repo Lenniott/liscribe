@@ -1,7 +1,12 @@
 """Tests for transcriber merge utilities."""
 
+from pathlib import Path
+
+from liscribe import transcriber
 from liscribe.transcriber import (
     TranscriptionResult,
+    choose_available_model,
+    is_model_available,
     merge_source_segments,
     build_merged_transcription_result,
 )
@@ -99,3 +104,26 @@ class TestBuildMergedTranscriptionResult:
         assert merged.metadata["sources"]["speaker"] == "THEM"
         assert "YOU: hello" in merged.text
         assert "THEM: there" in merged.text
+
+
+class TestModelAvailability:
+    def test_detects_model_from_secondary_cache_root(self, monkeypatch, tmp_path: Path):
+        primary = tmp_path / "liscribe"
+        secondary = tmp_path / "hf-hub"
+        snapshot_dir = secondary / "models--Systran--faster-whisper-small" / "snapshots" / "abc123"
+        snapshot_dir.mkdir(parents=True)
+        (snapshot_dir / "model.bin").write_bytes(b"x")
+
+        monkeypatch.setattr(transcriber, "_model_cache_roots", lambda: [primary, secondary])
+
+        assert is_model_available("small")
+
+    def test_choose_available_model_falls_back_when_default_missing(self, monkeypatch):
+        available = {"base", "medium"}
+        monkeypatch.setattr(
+            transcriber,
+            "is_model_available",
+            lambda model: model in available,
+        )
+
+        assert choose_available_model("small") == "base"

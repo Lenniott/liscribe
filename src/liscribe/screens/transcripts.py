@@ -23,7 +23,9 @@ class TranscriptsScreen(BackScreen):
             with Vertical(classes="screen-body"):
                 with ScrollableContainer(id="transcripts-list", classes="scroll-fill"):
                     pass  # filled in on_mount
-            yield Button("^c Back Home", id="btn-back", classes="btn btn-secondary btn-inline")
+            with Horizontal(classes="footer-container"):
+                yield Static("", classes="spacer-x")
+                yield Button("^c Back Home", id="btn-back", classes="btn btn-secondary btn-inline")
 
     def on_mount(self) -> None:
         self._refresh()

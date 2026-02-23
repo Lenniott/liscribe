@@ -17,10 +17,10 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Static
 
-from liscribe.config import load_config
+from liscribe.config import load_config, save_config
 from liscribe.notes import Note
 from liscribe.screens.top_bar import TopBar
-from liscribe.transcriber import is_model_available
+from liscribe.transcriber import choose_available_model
 
 
 class TranscribingScreen(Screen[None]):
@@ -67,7 +67,7 @@ class TranscribingScreen(Screen[None]):
                     yield Static("0%", id="transcribing-percent")
                     yield Static("--:--:--", id="transcribing-time")
                 yield Static("", classes="spacer-y")
-            with Horizontal(id="transcribing-footer", classes="screen-body-footer"):
+            with Horizontal(id="transcribing-footer", classes="footer-container"):
                 yield Button("Open transcript", id="btn-open-transcript", classes="btn btn-primary btn-inline hug-row", disabled=True)
                 yield Static("", classes="spacer-x")
                 yield Button("^c Back to home", id="btn-back", classes="btn btn-secondary btn-inline hug-row", disabled=True)
@@ -82,14 +82,25 @@ class TranscribingScreen(Screen[None]):
     def _run_pipeline(self) -> None:
         """Run transcription in a subprocess to avoid fds_to_keep / multiprocessing issues."""
         cfg = load_config()
-        model_size = cfg.get("whisper_model", "base")
-        available = [m for m in [model_size] if is_model_available(m)]
-        if not available:
+        configured_model = str(cfg.get("whisper_model", "base"))
+        model_size = choose_available_model(configured_model)
+        if model_size is None:
             self._error = "No whisper model installed. Run rec setup to download."
             self.app.call_from_thread(self._update_done)
             return
 
-        model_size = available[0]
+        if model_size != configured_model:
+            cfg["whisper_model"] = model_size
+            try:
+                save_config(cfg)
+            except Exception:
+                pass
+            self.app.call_from_thread(
+                self.notify,
+                f"Default model '{configured_model}' was not installed. Using '{model_size}'.",
+                severity="warning",
+            )
+
         self.app.call_from_thread(self._set_model_size, model_size)
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as nf:

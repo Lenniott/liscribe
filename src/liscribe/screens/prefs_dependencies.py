@@ -27,7 +27,7 @@ class PrefsDependenciesScreen(BackScreen):
                 with ScrollableContainer(id="deps-container", classes="scroll-fill"):
                     pass  # filled in on_mount
                 yield Static("", classes="margin-small")
-            with Horizontal(classes="screen-body-footer"):
+            with Horizontal(classes="footer-container"):
                 yield Button("^c Back to Preferences", id="btn-back", classes="btn btn-secondary btn-inline hug-row")
                 yield Static("", classes="spacer-x")
 

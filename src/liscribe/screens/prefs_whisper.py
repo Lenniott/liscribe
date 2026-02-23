@@ -8,9 +8,29 @@ from textual.widgets import Button, Input, Static
 from liscribe.config import load_config, save_config
 from liscribe.screens.base import BackScreen
 from liscribe.screens.top_bar import TopBar
-from liscribe.transcriber import is_model_available, load_model, remove_model
+from liscribe import transcriber as _transcriber
 
 WHISPER_MODELS = ["tiny", "base", "small", "medium", "large"]
+
+
+def _is_model_available(name: str) -> bool:
+    return _transcriber.is_model_available(name)
+
+
+def _list_available_models() -> list[str]:
+    helper = getattr(_transcriber, "list_available_models", None)
+    if callable(helper):
+        return list(helper())
+    # Backward-compat fallback for older transcriber modules.
+    return [name for name in WHISPER_MODELS if _is_model_available(name)]
+
+
+def _load_model(name: str):
+    return _transcriber.load_model(name)
+
+
+def _remove_model(name: str) -> tuple[bool, str]:
+    return _transcriber.remove_model(name)
 
 
 class PrefsWhisperScreen(BackScreen):
@@ -37,7 +57,7 @@ class PrefsWhisperScreen(BackScreen):
                 with Vertical(id="model-list"):
                     pass
                 yield Static("", classes="margin-small")
-            with Horizontal(classes="screen-body-footer"):
+            with Horizontal(classes="footer-container"):
                 yield Button("^c Back to preferences", id="btn-back", classes="btn btn-secondary btn-inline hug-row")
                 yield Static("", classes="spacer-x")
                 yield Button("Save", id="btn-save-lang", classes="btn btn-primary btn-inline hug-row")
@@ -51,14 +71,19 @@ class PrefsWhisperScreen(BackScreen):
         container = self.query_one("#model-list", Vertical)
         container.remove_children()
         for name in WHISPER_MODELS:
-            installed = is_model_available(name)
+            installed = _is_model_available(name)
             current = name == cfg.get("whisper_model")
             downloaded_mark = "✓" if installed else "✘"
             default_mark = " ♥︎" if current else ""
 
             row = Horizontal(
                 Static(downloaded_mark, classes="model-col-mark"),
-                Button(f"{name}{default_mark}", id=f"set-{name}", classes="btn btn-secondary btn-inline model-col-model"),
+                Button(
+                    f"{name}{default_mark}",
+                    id=f"set-{name}",
+                    classes="btn btn-secondary btn-inline model-col-model",
+                    disabled=not installed,
+                ),
                 Button(
                     "Remove" if installed else "Download",
                     id=f"{'remove' if installed else 'download'}-{name}",
@@ -84,6 +109,10 @@ class PrefsWhisperScreen(BackScreen):
             return
         if event.button.id and event.button.id.startswith("set-"):
             model = event.button.id.replace("set-", "")
+            if not _is_model_available(model):
+                self.notify(f"Cannot set default to {model}: model is not installed.", severity="error")
+                self._refresh_models()
+                return
             cfg = load_config()
             cfg["whisper_model"] = model
             save_config(cfg)
@@ -100,7 +129,7 @@ class PrefsWhisperScreen(BackScreen):
 
     def _download_model(self, model: str) -> None:
         try:
-            load_model(model)
+            _load_model(model)
             error = None
         except Exception as exc:
             error = str(exc)
@@ -115,11 +144,20 @@ class PrefsWhisperScreen(BackScreen):
         self.app.call_from_thread(done)
 
     def _remove_model(self, model: str) -> None:
-        ok, msg = remove_model(model)
+        ok, msg = _remove_model(model)
 
         def done() -> None:
+            cfg = load_config()
             if ok:
                 self.notify(f"Removed model: {model}")
+                if cfg.get("whisper_model") == model:
+                    installed_models = _list_available_models()
+                    if installed_models:
+                        cfg["whisper_model"] = installed_models[0]
+                        save_config(cfg)
+                        self.notify(f"Default model switched to {installed_models[0]}")
+                    else:
+                        self.notify("No models installed. Download one to set a default.", severity="warning")
             else:
                 self.notify(msg, severity="error")
             self._refresh_models()

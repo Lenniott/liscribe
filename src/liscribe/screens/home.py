@@ -37,7 +37,7 @@ class HomeScreen(Screen[None]):
                 with Horizontal(classes="dock-bottom"):
                     yield Button("^r  Record", id="btn-record", classes="btn btn-primary btn-block")
                     yield Static("")
-                    with Horizontal(classes="screen-body-footer"):
+                    with Horizontal(classes="footer-container"):
                         yield Button("^t  Transcripts", id="btn-transcripts", classes="btn btn-secondary btn-inline")
                         yield Static("", classes="spacer-x")
                         yield Button("^p  Preferences", id="btn-preferences", classes="btn btn-secondary btn-inline")

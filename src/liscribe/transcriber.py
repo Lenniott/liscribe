@@ -37,6 +37,7 @@ MODEL_REPO_IDS = {
     "medium": "Systran/faster-whisper-medium",
     "large": "Systran/faster-whisper-large-v3",
 }
+WHISPER_MODEL_ORDER = ("tiny", "base", "small", "medium", "large")
 
 
 class TranscriptionResult:
@@ -68,32 +69,127 @@ def get_model_path() -> Path:
     return Path.home() / ".cache" / "liscribe" / "models"
 
 
+def _model_cache_roots() -> list[Path]:
+    """Known cache roots that may contain faster-whisper model snapshots."""
+    return [
+        get_model_path(),
+        Path.home() / ".cache" / "huggingface" / "hub",
+    ]
+
+
+def _model_repo_candidates(model_size: str) -> list[str]:
+    """Repository IDs that may correspond to a requested model size."""
+    repo_id = MODEL_REPO_IDS.get(model_size)
+    if model_size == "large":
+        return [
+            MODEL_REPO_IDS["large"],
+            "Systran/faster-whisper-large-v2",
+            "Systran/faster-whisper-large",
+        ]
+    if repo_id:
+        return [repo_id]
+    return [f"Systran/faster-whisper-{model_size}"]
+
+
+def _model_cache_dirs(model_size: str) -> list[Path]:
+    seen: set[Path] = set()
+    cache_dirs: list[Path] = []
+    for root in _model_cache_roots():
+        for repo_id in _model_repo_candidates(model_size):
+            candidate = root / f"models--{repo_id.replace('/', '--')}"
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            cache_dirs.append(candidate)
+    return cache_dirs
+
+
 def get_model_cache_dir(model_size: str) -> Path:
-    """Return cache directory for a specific model repo."""
-    repo_id = MODEL_REPO_IDS.get(model_size, f"Systran/faster-whisper-{model_size}")
-    return get_model_path() / f"models--{repo_id.replace('/', '--')}"
+    """Return the primary local cache directory for a specific model repo."""
+    return _model_cache_dirs(model_size)[0]
+
+
+def _iter_snapshot_dirs(model_size: str):
+    for model_dir in _model_cache_dirs(model_size):
+        snapshots = model_dir / "snapshots"
+        if not snapshots.is_dir():
+            continue
+        try:
+            dirs = [p for p in snapshots.iterdir() if p.is_dir()]
+        except OSError:
+            continue
+        dirs.sort(key=lambda p: p.name, reverse=True)
+        for snapshot_dir in dirs:
+            yield snapshot_dir
+
+
+def _snapshot_has_model_files(snapshot_dir: Path) -> bool:
+    return (
+        (snapshot_dir / "model.bin").exists()
+        or (snapshot_dir / "model.bin.index.json").exists()
+    )
+
+
+def get_installed_model_snapshot(model_size: str) -> Path | None:
+    """Return a snapshot directory for an installed model, if available."""
+    first_snapshot: Path | None = None
+    for snapshot_dir in _iter_snapshot_dirs(model_size):
+        if first_snapshot is None:
+            first_snapshot = snapshot_dir
+        if _snapshot_has_model_files(snapshot_dir):
+            return snapshot_dir
+    return first_snapshot
+
+
+def list_available_models(model_names: list[str] | tuple[str, ...] | None = None) -> list[str]:
+    """Return installed models in quality order."""
+    names = model_names or WHISPER_MODEL_ORDER
+    return [name for name in names if is_model_available(name)]
+
+
+def choose_available_model(preferred_model: str | None = None) -> str | None:
+    """Return preferred model when installed, otherwise first installed model."""
+    preferred = (preferred_model or "").strip()
+    if preferred and is_model_available(preferred):
+        return preferred
+    available = list_available_models()
+    return available[0] if available else None
 
 
 def is_model_available(model_size: str) -> bool:
     """Check whether a model is already downloaded (no network access)."""
-    model_dir = get_model_cache_dir(model_size)
-    if model_dir.is_dir():
-        snapshots = model_dir / "snapshots"
-        if snapshots.is_dir():
-            return any(snapshots.iterdir())
-    return False
+    return get_installed_model_snapshot(model_size) is not None
 
 
 def remove_model(model_size: str) -> tuple[bool, str]:
-    """Remove a downloaded model from local cache."""
-    model_dir = get_model_cache_dir(model_size)
-    if not model_dir.exists():
+    """Remove a downloaded model from known local cache roots."""
+    targets = [p for p in _model_cache_dirs(model_size) if p.exists()]
+    if not targets:
         return False, f"Model not installed: {model_size}"
+    removed = 0
+    errors: list[str] = []
+    for model_dir in targets:
+        try:
+            shutil.rmtree(model_dir)
+            removed += 1
+        except Exception as exc:
+            errors.append(str(exc))
+    if errors:
+        joined = "; ".join(errors)
+        return False, f"Could not fully remove {model_size}: {joined}"
     try:
-        shutil.rmtree(model_dir)
-        return True, f"Removed model: {model_size}"
-    except Exception as exc:
-        return False, f"Could not remove {model_size}: {exc}"
+        # Clean up stale lock dirs created by huggingface_hub.
+        for root in _model_cache_roots():
+            lock_dir = root / ".locks"
+            if not lock_dir.exists():
+                continue
+            for repo_id in _model_repo_candidates(model_size):
+                lock_target = lock_dir / f"models--{repo_id.replace('/', '--')}"
+                shutil.rmtree(lock_target, ignore_errors=True)
+    except Exception:
+        pass
+    suffix = "s" if removed != 1 else ""
+    return True, f"Removed model cache{suffix}: {model_size}"
 
 
 def load_model(model_size: str | None = None):
@@ -104,10 +200,15 @@ def load_model(model_size: str | None = None):
         cfg = load_config()
         model_size = cfg.get("whisper_model", "base")
 
-    logger.info("Loading whisper model: %s", model_size)
+    snapshot_dir = get_installed_model_snapshot(model_size)
+    model_source = str(snapshot_dir) if snapshot_dir else model_size
+    if snapshot_dir is not None:
+        logger.info("Loading whisper model: %s (snapshot=%s)", model_size, snapshot_dir)
+    else:
+        logger.info("Loading whisper model: %s", model_size)
 
     model = WhisperModel(
-        model_size,
+        model_source,
         device="cpu",
         compute_type="int8",
         download_root=str(get_model_path()),

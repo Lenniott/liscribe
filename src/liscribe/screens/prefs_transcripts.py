@@ -39,7 +39,7 @@ class PrefsTranscriptsScreen(BackScreen):
                 yield Static("Default app for 'Open transcript' (e.g. cursor, code, code -r, default):")
                 yield Input(value=open_app, id="open-app-input", placeholder="cursor")
                 yield Static("", classes="margin-small")
-            with Horizontal(classes="screen-body-footer"):
+            with Horizontal(classes="footer-container"):
                     yield Button("^c Back to preferences", id="btn-back", classes="btn btn-secondary btn-inline hug-row")
                     yield Static("", classes="spacer-x")
                     yield Button("Save", id="btn-save", classes="btn btn-primary btn-inline hug-row")

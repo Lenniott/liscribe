@@ -56,22 +56,25 @@ class RecordingScreen(Screen[RecordingResult]):
         self._exit_error_message: str | None = None
 
     def compose(self):
-        with Vertical(classes="screen-frame large-container"):
+        with Vertical(classes="screen-frame"):
             yield TopBar(variant="compact", section="Record")
-            yield Static("")
+
             with Vertical(id="waveform-container", classes="top-container"):
+                yield Static("")
                 yield Static("", id="waveform", classes="waveform")
                 yield Static("", id="waveform-speaker", classes="waveform")
-            yield Static("")
-            with Vertical(id="notes-container"):
-                with ScrollableContainer():
-                    yield Static("", id="notes-log", classes="notes-log")
+                yield Static("")
+            
+            with ScrollableContainer(classes="scroll-fill"):
+                yield Static("", id="notes-log", classes="scrollable-container")
+            with Vertical(classes="dock-bottom"):
                 yield Static(
                     "Notes are added to the transcript as footnotes.",
-                    id="notes-help", classes="help-text dock-bottom"
+                    id="notes-help", classes="help-text"
                 )
-                yield Input(placeholder="Type a note, press Enter...", id="note-input", classes="text-input dock-bottom")
-            with Horizontal(classes="screen-body-footer"):
+                yield Input(placeholder="Type a note, press Enter...", id="note-input", classes="text-input")
+                yield Static("")
+            with Horizontal(classes="footer-container"):
                 yield Button("Save", id="btn-save", classes="btn btn-primary btn-inline hug-row")
                 yield Static("", classes="spacer-x")
                 yield Button("^o Speaker", id="btn-speaker", classes="btn btn-secondary btn-inline")

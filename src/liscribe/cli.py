@@ -563,7 +563,21 @@ def transcribe_cmd(
             models = parent_models
     if not models:
         cfg = load_config()
-        models = [cfg.get("whisper_model", "base")]
+        configured_model = str(cfg.get("whisper_model", "base"))
+        from liscribe.config import save_config
+        from liscribe.transcriber import choose_available_model
+
+        chosen_model = choose_available_model(configured_model)
+        if chosen_model is not None:
+            models = [chosen_model]
+            if chosen_model != configured_model:
+                cfg["whisper_model"] = chosen_model
+                save_config(cfg)
+                console.print(
+                    f"  [dim]Default model '{configured_model}' not installed; using '{chosen_model}'.[/dim]"
+                )
+        else:
+            models = [configured_model]
 
     folder = ctx.obj.get("folder")
     here = ctx.obj.get("here", False)
@@ -600,6 +614,7 @@ def _setup_configure_only(cfg: dict) -> None:
 
     current_model = cfg.get("whisper_model", "base")
     model_names = [name for name, _ in WHISPER_MODELS]
+    installed_models = [name for name in model_names if is_model_available(name)]
 
     console.print()
     console.print("  [bold]Default model[/bold]")
@@ -607,13 +622,27 @@ def _setup_configure_only(cfg: dict) -> None:
         installed = " [green]✓[/green]" if is_model_available(name) else ""
         current = " [dim](current default)[/dim]" if name == current_model else ""
         console.print(f"    {i}. [bold]{name:<8}[/bold] {desc}{installed}{current}")
-    default_idx = model_names.index(current_model) + 1 if current_model in model_names else 2
-    default_choice = click.prompt(
-        "  Default model for recordings (number)",
-        type=click.IntRange(1, len(WHISPER_MODELS)),
-        default=default_idx,
-    )
-    default_model = model_names[default_choice - 1]
+
+    if installed_models:
+        if current_model in installed_models:
+            default_idx = model_names.index(current_model) + 1
+        else:
+            default_idx = model_names.index(installed_models[0]) + 1
+        default_model = ""
+        while True:
+            default_choice = click.prompt(
+                "  Default model for recordings (number)",
+                type=click.IntRange(1, len(WHISPER_MODELS)),
+                default=default_idx,
+            )
+            candidate = model_names[default_choice - 1]
+            if is_model_available(candidate):
+                default_model = candidate
+                break
+            console.print("  [yellow]That model is not installed. Choose one marked with ✓.[/yellow]")
+    else:
+        default_model = current_model
+        console.print("  [yellow]No models are installed yet. Keeping current default until a model is downloaded.[/yellow]")
 
     current_lang = cfg.get("language", "en")
     console.print()
@@ -643,6 +672,7 @@ def _setup_configure_only(cfg: dict) -> None:
 
 def _setup_download_models(cfg: dict) -> None:
     """Prompt for which models to download and download them."""
+    from liscribe.config import save_config
     from liscribe.transcriber import is_model_available, load_model
 
     current_model = cfg.get("whisper_model", "base")
@@ -700,6 +730,15 @@ def _setup_download_models(cfg: dict) -> None:
                 console.print(f"  [green]Ready:[/green] {model_size}")
             except Exception as exc:
                 console.print(f"  [red]Error [bold]{model_size}[/bold]:[/red] {exc}")
+
+    if not is_model_available(str(cfg.get("whisper_model", "base"))):
+        installed_models = [name for name in model_names if is_model_available(name)]
+        if installed_models:
+            cfg["whisper_model"] = installed_models[0]
+            save_config(cfg)
+            console.print(
+                f"  [dim]Default model updated to [bold]{installed_models[0]}[/bold] (installed).[/dim]"
+            )
 
 
 @main.command()
