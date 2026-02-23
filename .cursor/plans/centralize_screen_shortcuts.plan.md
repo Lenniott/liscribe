@@ -2,6 +2,7 @@
 name: Centralize screen shortcuts
 overview: Centralize keyboard shortcuts in a shared bindings module and a base screen class so all "back" screens and recording/home screens get their bindings from one place instead of repeating BINDINGS and action_back on each screen.
 todos: []
+isProject: false
 ---
 
 # Centralize shortcuts for all screens
@@ -44,16 +45,17 @@ In each of the eight screens: inherit from `BackScreen`, remove local `BINDINGS`
 
 ### 3. Use shared bindings for Recording and Home
 
-- **RecordingApp** (app.py): `BINDINGS = RECORDING_BINDINGS` from base; leave all `action_*` (including speaker toggle) on the app.
-- **RecordingScreen** (screens/recording.py): `BINDINGS = RECORDING_BINDINGS` from base; leave all `action_*` (including speaker toggle) on the screen.
+- **RecordingApp** (app.py): `BINDINGS = RECORDING_BINDINGS` from base; leave all `action`_* (including speaker toggle) on the app.
+- **RecordingScreen** (screens/recording.py): `BINDINGS = RECORDING_BINDINGS` from base; leave all `action`_* (including speaker toggle) on the screen.
 - **HomeScreen** (screens/home.py): `BINDINGS = HOME_BINDINGS` from base; keep screen-specific actions.
 
 ### 4. Exports
 
-In screens/__init__.py, export `BackScreen` if needed; binding constants stay in base for use by screens and app.
+In screens/**init**.py, export `BackScreen` if needed; binding constants stay in base for use by screens and app.
 
 ## Result
 
 - One place for “back” binding and behavior (BackScreen + BACK_BINDINGS).
 - One place for recording **shortcut definitions** (RECORDING_BINDINGS); recording **actions** (including the complex speaker toggle) remain on RecordingApp and RecordingScreen.
 - One place for home shortcut definitions (HOME_BINDINGS).
+

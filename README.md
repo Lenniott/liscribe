@@ -1,7 +1,7 @@
 # Liscribe
 
 100% offline terminal audio recorder and transcriber for macOS.
-![Liscribe screenshot](liscribe.png)
+![Liscribe home screenshot](liscribe_home.png)
 
 Record from your microphone (and optionally system audio via BlackHole), transcribe locally with faster-whisper, and save Markdown transcripts — all without any network access.
 
@@ -34,11 +34,32 @@ cd liscribe
 This removes the virtual environment, config, model cache, and shell alias. Optionally removes Homebrew dependencies (portaudio, blackhole-2ch, switchaudio-osx).
 
 ## Usage
+![Liscribe record screenshot](liscribe_rec.png)
+### Interactive TUI
+
+Just run `rec` with no arguments to open the interactive interface:
 
 ```bash
-rec -f /path/to/save              # Record mic, save to folder
+rec
+```
+
+From the home screen you can:
+
+- **Record** — start a recording with a live waveform display; add timestamped notes during the session; save to trigger transcription
+- **Transcripts** — browse, copy, open, or delete saved transcripts
+- **Preferences** — configure general settings, save location, Whisper model/language, and dependencies
+- **Help** — full command reference
+
+Transcription runs in the background with a real-time progress bar. When done, open the transcript directly in your configured editor.
+
+### CLI
+
+For scripting or headless use:
+
+```bash
+rec -f /path/to/save              # Record mic, save to folder (opens TUI recording screen)
 rec -f /path/to/save -s           # Record mic + speaker (BlackHole), source-labeled merge
-rec -f /path/to/save --mic "USB" # Use a specific microphone
+rec -f /path/to/save --mic "USB"  # Use a specific microphone
 rec -h                            # Save to ./docs/transcripts in current directory
 rec transcribe file.wav           # Transcribe existing audio (or rec t file.wav)
 rec devices                       # List available input devices
@@ -59,11 +80,12 @@ With `-s`, Liscribe records two source tracks (`mic.wav`, `speaker.wav`) and wri
 ## Models and transcription
 
 - **Default model** comes from config (`whisper_model`). Override per run with `--tiny`, `--base`, `--small`, `--medium`, `--large` (short: `-xxs`, `-xs`, `-sm`, `-md`, `-lg`).
-- **Multi-model:** pass multiple flags (e.g. `rec -f ~/out -sm -md` or `rec t file.wav -sm -md`) to get one transcript per model; filenames get a model suffix when using more than one; clipboard gets the highest-quality result. Run `rec setup` to install more models.
+- **Multi-model:** pass multiple flags (e.g. `rec -f ~/out -sm -md`) to get one transcript per model; filenames get a model suffix when using more than one; clipboard gets the highest-quality result.
+- Download and remove models from **Preferences → Whisper** in the TUI, or run `rec setup`.
 
 ## Configuration
 
-Config lives at `~/.config/liscribe/config.json`. See `config.example.json` for all options with descriptions.
+Config lives at `~/.config/liscribe/config.json`. Edit directly or use **Preferences** in the TUI. See `config.example.json` for all options with descriptions.
 
 Key settings:
 
@@ -72,6 +94,7 @@ Key settings:
 | `whisper_model` | `base` | Model size: `tiny`, `base`, `small`, `medium`, `large` |
 | `language` | `en` | ISO 639-1 code (`en`, `fr`, `de`, ...) or `auto` for auto-detect |
 | `save_folder` | `~/transcripts` | Default output folder (override with `-f`) |
+| `open_transcript_app` | `cursor` | Editor for "Open transcript" — `cursor`, `code`, `vim`, `nvim`, or `default` |
 
 ## System Requirements
 

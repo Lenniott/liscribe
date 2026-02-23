@@ -10,3 +10,4 @@ build/
 .env
 .DS_Store
 /docs/transcripts
+/.cursor
