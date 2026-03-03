@@ -83,32 +83,57 @@ def _build_chronological_transcript(
     notes: list[Note] | None = None,
     include_timestamps: bool = False,
 ) -> str:
-    """Build line-by-line chronological transcript with source-based speakers."""
+    """Build chronological transcript with consecutive same-speaker segments grouped; blank line between speaker changes."""
     seg_notes: dict[int, list[int]] = defaultdict(list)
     if notes:
         for note in notes:
             idx = _find_segment_for_note(segments, note.timestamp)
             seg_notes[idx].append(note.index)
 
-    lines: list[str] = []
+    def speaker_for(seg: dict) -> str:
+        source = seg.get("source")
+        if source == "mic":
+            return "In (mic)"
+        if source == "speaker":
+            return "Out (speaker)"
+        return seg.get("speaker", "Speaker")
+
+    # Group consecutive segments by speaker
+    groups: list[tuple[str, float, list[tuple[str, str]]]] = []
+    current_speaker: str | None = None
+    current_start: float = 0.0
+    current_parts: list[tuple[str, str]] = []
+
     for i, seg in enumerate(segments):
         text = seg.get("text", "").strip()
         if not text:
             continue
-        source = seg.get("source")
-        if source == "mic":
-            speaker = "In (mic)"
-        elif source == "speaker":
-            speaker = "Out (speaker)"
-        else:
-            speaker = seg.get("speaker", "Speaker")
+        spk = speaker_for(seg)
         refs = "".join(f"[{n}]" for n in seg_notes.get(i, []))
-        if include_timestamps:
-            ts = _format_timestamp(seg.get("start", 0.0))
-            lines.append(f"[{ts}] {speaker}: {text}{refs}")
+        part = (text, refs)
+        start = float(seg.get("start", 0.0))
+
+        if spk != current_speaker:
+            if current_parts:
+                groups.append((current_speaker or "Speaker", current_start, current_parts))
+            current_speaker = spk
+            current_start = start
+            current_parts = [part]
         else:
-            lines.append(f"{speaker}: {text}{refs}")
-    return "\n".join(lines)
+            current_parts.append(part)
+
+    if current_parts:
+        groups.append((current_speaker or "Speaker", current_start, current_parts))
+
+    lines: list[str] = []
+    for speaker, first_start, parts in groups:
+        combined = " ".join(t + r for t, r in parts)
+        if include_timestamps:
+            ts = _format_timestamp(first_start)
+            lines.append(f"[{ts}] {speaker}: {combined}")
+        else:
+            lines.append(f"{speaker}: {combined}")
+    return "\n\n".join(lines)
 
 
 def build_markdown(
@@ -129,24 +154,15 @@ def build_markdown(
         model_name = cfg.get("whisper_model", "base")
 
     source_based = any("speaker" in seg and "source" in seg for seg in result.segments)
+    # Heuristic: ~1.3 tokens per word for English; useful for API cost estimation.
+    token_estimate = max(0, round(result.word_count * 1.3))
     front_matter: dict = {
         "title": f"Transcript {now.strftime('%Y-%m-%d %H:%M')}",
-        "date": now.isoformat(),
         "duration_seconds": round(result.duration, 1),
         "word_count": result.word_count,
-        "language": result.language,
-        "speaker_capture": speaker_mode or source_based,
+        "token_estimate": token_estimate,
         "model": model_name,
     }
-    if source_based:
-        front_matter["diarization"] = "source-based"
-        front_matter["sources"] = {"mic": "YOU", "speaker": "THEM"}
-
-    # Only include mic name if it's a real, known device name.
-    # Omitting "unknown" avoids writing a misleading field and keeps
-    # exported transcripts free of unhelpful hardware noise.
-    if mic_name and mic_name.lower() != "unknown":
-        front_matter["mic"] = mic_name
 
     lines = ["---"]
     lines.append(yaml.dump(front_matter, default_flow_style=False, sort_keys=False).strip())

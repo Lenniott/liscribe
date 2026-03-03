@@ -11,6 +11,8 @@ import tempfile
 import time
 from pathlib import Path
 
+import yaml
+
 _ALLOWED_OPENERS = frozenset({
     "cursor", "code", "vim", "nvim", "nano", "kate", "subl", "subl3",
     "gedit", "emacs", "atom", "zed", "open", "xdg-open",
@@ -62,7 +64,7 @@ class TranscribingScreen(Screen[None]):
     def compose(self):
         with Vertical(classes="screen-frame"):
             yield TopBar(variant="compact", section="Transcription")
-            with Vertical(classes="screen-body"):
+            with Vertical(id="transcribing-body", classes="screen-body"):
                 yield Static("Transcribing", id="transcribing-title", classes="screen-body-title")
                 with Horizontal(id="transcribing-over", classes="row"):
                     yield Static("Preparing", id="transcribing-stage")
@@ -237,25 +239,108 @@ class TranscribingScreen(Screen[None]):
         except Exception:
             pass
 
+    def _summary_from_md(self) -> str:
+        """Parse saved transcript front matter and return a one-line summary."""
+        if not self._saved_md:
+            return ""
+        path = Path(self._saved_md).expanduser().resolve()
+        if not path.exists():
+            return ""
+        try:
+            raw = path.read_text(encoding="utf-8")
+            if "---" not in raw:
+                return ""
+            parts = raw.split("---", 2)
+            if len(parts) < 3:
+                return ""
+            fm = yaml.safe_load(parts[1].strip())
+            if not fm:
+                return ""
+            duration = fm.get("duration_seconds")
+            words = fm.get("word_count")
+            model = fm.get("model", "—")
+            tokens = fm.get("token_estimate")
+            bits = []
+            if duration is not None:
+                mins, secs = divmod(int(round(float(duration))), 60)
+                if mins >= 60:
+                    h, m = divmod(mins, 60)
+                    bits.append(f"{h}h {m}m {secs}s")
+                else:
+                    bits.append(f"{mins}m {secs}s")
+            if words is not None:
+                bits.append(f"{words} words")
+            if tokens is not None:
+                bits.append(f"~{tokens} tokens")
+            bits.append(model)
+            return " · ".join(str(b) for b in bits)
+        except Exception:
+            return ""
+
+    def _snippet_from_md(self, max_chars: int = 280) -> str:
+        """Return first portion of transcript body (after front matter and ## Transcript)."""
+        if not self._saved_md:
+            return ""
+        path = Path(self._saved_md).expanduser().resolve()
+        if not path.exists():
+            return ""
+        try:
+            raw = path.read_text(encoding="utf-8")
+            if "---" not in raw:
+                return raw[:max_chars] + ("..." if len(raw) > max_chars else "")
+            parts = raw.split("---", 2)
+            if len(parts) < 3:
+                return ""
+            body = parts[2].strip()
+            if body.lower().startswith("## transcript"):
+                rest = body.split("\n", 1)[-1].lstrip()
+                body = rest
+            text = body.replace("\n", " ").strip()
+            if len(text) <= max_chars:
+                return text
+            return text[:max_chars].rsplit(" ", 1)[0] + "…"
+        except Exception:
+            return ""
+
+    def _show_completion_view(self) -> None:
+        """Replace progress UI with Transcript complete banner, summary, and snippet."""
+        try:
+            body = self.query_one("#transcribing-body", Vertical)
+            body.remove_children()
+            summary = self._summary_from_md()
+            snippet = self._snippet_from_md()
+            body.mount(
+                Static("Transcript complete", id="transcribing-complete-banner", classes="transcribing-complete-banner")
+            )
+            body.mount(Static(summary or "Saved", id="transcribing-summary", classes="transcribing-summary"))
+            if snippet:
+                body.mount(Static(snippet, id="transcribing-snippet", classes="transcribing-snippet"))
+            body.mount(Static("", classes="spacer-y"))
+        except Exception:
+            pass
+
     def _update_done(self) -> None:
         self._done = True
         try:
-            title = self.query_one("#transcribing-title", Static)
             if self._error:
-                title.update("Transcription failed")
+                self.query_one("#transcribing-title", Static).update("Transcription failed")
                 self._stage_text = "Failed"
                 self.notify(self._error, severity="error")
+                self.query_one("#btn-back", Button).disabled = False
+                self._render_progress()
+                return
+            if self._saved_md:
+                self._transcript_name = Path(self._saved_md).name
+                self.query_one("#btn-open-transcript", Button).disabled = False
+                self._show_completion_view()
             else:
-                title.update("Done")
+                self.query_one("#transcribing-title", Static).update("Done")
                 self._stage_text = "Saved"
                 self._progress = 1.0
                 self._eta_remaining_sec = 0.0
-                if self._saved_md:
-                    self._transcript_name = Path(self._saved_md).name
-                    self.query_one("#btn-open-transcript", Button).disabled = False
-                self.notify(f"Saved: {self._transcript_name}")
+                self._render_progress()
             self.query_one("#btn-back", Button).disabled = False
-            self._render_progress()
+            self.notify(f"Saved: {self._transcript_name}")
         except Exception:
             pass
 

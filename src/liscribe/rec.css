@@ -91,12 +91,11 @@ Screen {
 
 .btn-inline:hover { color: $text; }
 
-.btn:focus { text-style: bold underline; }
+.btn:focus { background: $primary-background; color: $surface}
 
 .btn:disabled {
     background: $surface;
     color: $text-muted;
-    border: solid $secondary;
     text-style: none;
 }
 
@@ -258,6 +257,28 @@ Screen {
 }
 
 #transcribing-under { margin-bottom: 1; }
+
+.transcribing-complete-banner {
+    width: 100%;
+    text-style: bold;
+    margin-bottom: 1;
+    color: $success;
+}
+
+.transcribing-summary {
+    width: 100%;
+    color: $text-muted;
+    margin-bottom: 1;
+}
+
+.transcribing-snippet {
+    width: 100%;
+    color: $text;
+    padding: 0 1;
+    border: solid $secondary;
+    max-height: 5;
+    overflow: hidden;
+}
 
 /* Transcripts */
 

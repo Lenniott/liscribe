@@ -36,6 +36,40 @@ from liscribe.platform_setup import (
 logger = logging.getLogger(__name__)
 
 
+# region agent log
+_DEBUG_LOG_PATH = Path("/Users/benjamin/repos/liscribe/.cursor/debug-e37e85.log")
+
+
+def _agent_debug_log(
+    hypothesis_id: str,
+    location: str,
+    message: str,
+    data: dict[str, Any] | None = None,
+    run_id: str = "pre-fix-1",
+) -> None:
+    """Append a single NDJSON debug log line for this debug session."""
+    try:
+        ts_ms = int(time.time() * 1000)
+        payload = {
+            "sessionId": "e37e85",
+            "id": f"log_{ts_ms}",
+            "timestamp": ts_ms,
+            "location": location,
+            "message": message,
+            "data": data or {},
+            "runId": run_id,
+            "hypothesisId": hypothesis_id,
+        }
+        with _DEBUG_LOG_PATH.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(payload) + "\n")
+    except Exception:
+        # Logging must never crash the recorder
+        pass
+
+
+# endregion
+
+
 def _extract_input_adc_time(time_info: Any) -> float | None:
     """Best-effort extraction of input ADC time from sounddevice callback metadata."""
     for key in ("inputBufferAdcTime", "input_buffer_adc_time"):
@@ -214,8 +248,27 @@ class RecordingSession:
     def _restore_audio_output(self) -> None:
         """Restore original audio output device if we changed it."""
         if self._original_output is not None:
+            _agent_debug_log(
+                "H2",
+                "recorder.py:_restore_audio_output:before",
+                "Restoring audio output device",
+                {
+                    "original_output": self._original_output,
+                    "current_output": get_current_output_device(),
+                    "speaker_device_name": self.speaker_device_name,
+                },
+            )
             set_output_device(self._original_output)
             logger.info("Restored audio output to: %s", self._original_output)
+            _agent_debug_log(
+                "H2",
+                "recorder.py:_restore_audio_output:after",
+                "Restored audio output device",
+                {
+                    "restored_output": self._original_output,
+                    "current_output_after": get_current_output_device(),
+                },
+            )
             self._original_output = None
         atexit.unregister(self._restore_audio_output)
 
@@ -227,6 +280,15 @@ class RecordingSession:
         if self.blackhole_idx is None:
             return f"BlackHole '{self.blackhole_name}' not found. Run setup for instructions."
         self._original_output = get_current_output_device()
+        _agent_debug_log(
+            "H1",
+            "recorder.py:enable_speaker_capture:before_switch",
+            "Enabling speaker capture and switching output",
+            {
+                "original_output": self._original_output,
+                "target_output": self.speaker_device_name,
+            },
+        )
         if not set_output_device(self.speaker_device_name):
             return (
                 f"Could not switch to '{self.speaker_device_name}'. "
@@ -240,6 +302,15 @@ class RecordingSession:
             return f"Error starting speaker capture: {exc}"
         self.speaker = True
         self._speaker_enabled_ever = True
+        _agent_debug_log(
+            "H1",
+            "recorder.py:enable_speaker_capture:after_switch",
+            "Speaker capture enabled",
+            {
+                "current_output": get_current_output_device(),
+                "speaker_device_name": self.speaker_device_name,
+            },
+        )
         return None
 
     def disable_speaker_capture(self) -> None:
@@ -248,6 +319,15 @@ class RecordingSession:
             self._speaker_stream.stop()
             self._speaker_stream.close()
             self._speaker_stream = None
+        _agent_debug_log(
+            "H2",
+            "recorder.py:disable_speaker_capture",
+            "Disabling speaker capture and restoring output",
+            {
+                "original_output": self._original_output,
+                "current_output_before_restore": get_current_output_device(),
+            },
+        )
         self._restore_audio_output()
         self.speaker = False
 
@@ -273,6 +353,15 @@ class RecordingSession:
                 return None
 
             self._original_output = get_current_output_device()
+            _agent_debug_log(
+                "H1",
+                "recorder.py:start:speaker_setup_before_switch",
+                "Starting session with speaker capture; switching output",
+                {
+                    "original_output": self._original_output,
+                    "target_output": self.speaker_device_name,
+                },
+            )
             if not set_output_device(self.speaker_device_name):
                 cmd_name = load_config().get("command_alias", "rec")
                 print(
@@ -286,6 +375,15 @@ class RecordingSession:
 
             # Register cleanup so we restore output even on crash
             atexit.register(self._restore_audio_output)
+            _agent_debug_log(
+                "H1",
+                "recorder.py:start:speaker_setup_after_switch",
+                "Speaker capture output switched for session start",
+                {
+                    "current_output": get_current_output_device(),
+                    "speaker_device_name": self.speaker_device_name,
+                },
+            )
 
         # Device display name
         if self.device_idx is not None:

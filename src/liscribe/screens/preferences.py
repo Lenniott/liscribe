@@ -14,18 +14,14 @@ class PreferencesHubScreen(BackScreen):
 
     def compose(self):
         with Vertical(classes="screen-frame"):
-            yield TopBar(variant="hero", section="Preferences")
+            yield TopBar(variant="compact", section="Preferences")
             with Vertical(classes="screen-body"):
-                yield Static("", classes="spacer-y")  
-             
+                yield Static("")
+                yield Button("General", id="btn-general", classes="btn btn-secondary btn-block")
+                yield Button("Transcripts", id="btn-transcripts", classes="btn btn-secondary btn-block")
+                yield Button("Whisper", id="btn-whisper", classes="btn btn-secondary btn-block")
+                yield Button("Dependencies", id="btn-deps", classes="btn btn-secondary btn-block")
             with Horizontal(classes="footer-container"):
-                yield Button("General", id="btn-general", classes="btn btn-secondary btn-inline fixed-width")
-                yield Static("", classes="spacer-x")
-                yield Button("Transcripts", id="btn-transcripts", classes="btn btn-secondary btn-inline fixed-width")
-                yield Static("", classes="spacer-x")
-                yield Button("Whisper", id="btn-whisper", classes="btn btn-secondary btn-inline fixed-width")
-                yield Static("", classes="spacer-x")
-                yield Button("Dependencies", id="btn-deps", classes="btn btn-secondary btn-inline fixed-width")
                 yield Static("", classes="spacer-x")
                 yield Button("^c Back home", id="btn-back", classes="btn btn-secondary btn-inline fixed-width")
 

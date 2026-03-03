@@ -93,9 +93,13 @@ class TestBuildMarkdown:
             return_value={"whisper_model": "base", "source_include_timestamps": False},
         ):
             md = build_markdown(_make_source_segment_result(), "/tmp/mic.wav")
-        assert "diarization: source-based" in md
+        assert "token_estimate:" in md
+        assert "word_count:" in md
+        assert "duration_seconds:" in md
         assert "In (mic): Okay let's start." in md
         assert "Out (speaker): Sure, I can see your screen now." in md
+        # Grouped by speaker with blank line between
+        assert "\n\nOut (speaker):" in md
 
 
 class TestSegmentNoteMapping:
