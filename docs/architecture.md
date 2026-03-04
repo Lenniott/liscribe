@@ -24,6 +24,7 @@ graph TD
 graph TD
     subgraph cli_layer [CLI Layer]
         CLI["cli.py - Click commands"]
+        Dictation["dictation.py - Hotkey daemon + paste"]
     end
 
     subgraph core [Core]
@@ -44,6 +45,7 @@ graph TD
     end
 
     CLI --> App
+    CLI --> Dictation
     CLI --> Config
     App --> Recorder
     App --> Waveform
@@ -52,6 +54,9 @@ graph TD
     Transcriber --> Output
     Notes --> Output
     Recorder --> Platform
+    Dictation --> Recorder
+    Dictation --> Transcriber
+    Dictation --> Clip
 ```
 
 ## Recording Flow
@@ -88,6 +93,37 @@ sequenceDiagram
     alt -s flag was set
         CLI->>Platform: Restore original output device
     end
+```
+
+## Dictation Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Daemon as dictation.py
+    participant Listener as pynput listener
+    participant Rec as _DictationRecorder
+    participant Trans as transcriber.py
+    participant App as Active application
+
+    User->>Daemon: rec dictate
+    Daemon->>Listener: Start global key listener (Right Option)
+    loop Idle — waiting for double-tap
+        Listener->>Daemon: key press event
+    end
+    Note over Daemon: Double-tap detected within 0.35s window
+    Daemon->>Rec: start() — open mic stream
+    Note over Rec: Live waveform + timer in terminal
+    loop Recording
+        Rec->>Rec: Buffer audio chunks
+    end
+    User->>Daemon: Single tap (stop)
+    Daemon->>Rec: stop_and_save() → dictation.wav
+    Daemon->>Trans: transcribe(wav, model=dictation_model)
+    Trans-->>Daemon: TranscriptionResult.text
+    Daemon->>App: Copy text → Cmd+V → paste at cursor
+    Daemon->>App: Restore original clipboard
+    Note over Daemon: Ready for next double-tap
 ```
 
 ## Transcription and Cleanup Flow

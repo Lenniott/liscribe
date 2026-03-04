@@ -418,6 +418,105 @@ THINGS TO TEST:
 
 ---
 
+---
+
+## Workflow 8: Dictation Mode (rec dictate)
+
+This workflow runs entirely in the terminal — no TUI. Each state below shows what the
+terminal looks like, plus the associated system sound and macOS notification.
+
+Launch:
+  $ rec dictate
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  IDLE — listening for double-tap                                             │
+│                                                                              │
+│    Liscribe Dictation                                                        │
+│    Model: base  |  Hotkey: Right Option                                      │
+│                                                                              │
+│    Double-tap Right Option to start recording.                               │
+│    Tap Right Option once to stop.                                            │
+│    Ctrl+C to quit.                                                           │
+│                                                                              │
+│    Note: Requires Input Monitoring + Accessibility in                        │
+│    System Settings → Privacy & Security.                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ACTION: Double-tap Right Option within 0.35s
+  Sound: Tink.aiff
+  Notification: "🎙 Recording — Tap Right Option to stop"
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  RECORDING — live waveform replaces idle text                                │
+│                                                                              │
+│    ● Recording…  (tap Right Option to stop)                                  │
+│                                                                              │
+│    ● 00:04  ▁▂▃▄▅▆▇█▇▆▅▄▃▂▁  [tap Right Option to stop]                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ACTION: Single tap Right Option
+  Sound: Pop.aiff
+  Notification: "⏳ Transcribing… — Model: base"
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  TRANSCRIBING                                                                │
+│                                                                              │
+│    Transcribing with base…                                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Transcript pasted at cursor in active app; original clipboard restored.
+  Sound: Glass.aiff
+  Notification: "✓ Pasted — 12 words: the quick brown fox jumped…"
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  DONE → back to IDLE                                                         │
+│                                                                              │
+│    ✓ 12 words: the quick brown fox jumped…                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+ERROR STATE (silence / mic failure / paste failure):
+  Sound: Basso.aiff
+  Notification: "✗ Error — <reason>"
+  Terminal shows red error line; daemon returns to IDLE.
+```
+
+THINGS TO TEST:
+  ✓ Double-tap within 0.35s starts recording; single tap at > 0.35s gap is ignored
+  ✓ Tink sound plays; live waveform renders in terminal with elapsed timer
+  ✓ Notification: "🎙 Recording…"
+  ✓ Single tap stops recording; Pop sound; waveform disappears immediately
+  ✓ Notification: "⏳ Transcribing…"
+  ✓ Transcript pasted at cursor in active app (TextEdit, browser, Slack, etc.)
+  ✓ Original clipboard contents restored after paste
+  ✓ Glass sound; notification shows word count + 60-char preview
+  ✓ Terminal shows green ✓ with word count + preview
+  ✓ --model tiny runs faster with no other behaviour change
+  ✓ --no-sounds suppresses all afplay calls; notifications still appear
+  ✓ Ctrl+C cleanly stops daemon; mic stream released; temp files removed
+  ✓ Basso + error notification when mic unavailable or transcription fails
+  ✓ Model loaded once and reused — second dictation has no model-load delay
+  ✗ On silence/inaudible: "Nothing transcribed" shown; no paste attempted
+
+FIRST-RUN / PERMISSIONS:
+  ✓ macOS prompts for Input Monitoring on first keystroke capture attempt
+  ✓ macOS prompts for Accessibility on first Cmd+V simulation
+  ✓ After granting both, re-running works without prompts
+  ! If permissions denied, clear error message with System Settings path shown
+
+PREFERENCES → DICTATION SCREEN:
+  ✓ Model list shows installed (✓) and unavailable (✘) models; active marked ♥︎
+  ✓ Clicking an installed model sets it immediately with notify() confirmation
+  ✓ Hotkey buttons: Right Option / Right Ctrl / Left Ctrl / Right Shift / Caps Lock
+  ✓ Active hotkey shown with primary button style; others secondary
+  ✓ Sounds toggle saves immediately on change with notify() confirmation
+  ✓ Back button returns to Preferences hub
+
+---
+
 ## Focus State Summary (What Should Be Focused on Each Screen Load)
 
 | Screen | Expected Initial Focus | Currently Set? |

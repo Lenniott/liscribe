@@ -47,7 +47,7 @@ From the home screen you can:
 
 - **Record** — start a recording with a live waveform display; add timestamped notes during the session; save to trigger transcription
 - **Transcripts** — browse, copy, open, or delete saved transcripts
-- **Preferences** — configure general settings, save location, Whisper model/language, and dependencies
+- **Preferences** — configure general settings, save location, Whisper model/language, dictation, and dependencies
 - **Help** — full command reference
 
 Transcription runs in the background with a real-time progress bar. When done, open the transcript directly in your configured editor.
@@ -65,6 +65,10 @@ rec transcribe file.wav           # Transcribe existing audio (or rec t file.wav
 rec devices                       # List available input devices
 rec setup                         # Re-configure model, language, check deps
 rec config --show                 # Show current config
+rec dictate                       # System-wide dictation: double-tap ⌥ to record, paste transcript
+rec dictate --model tiny          # Use a faster model for dictation
+rec dictate --hotkey right_ctrl   # Use a different trigger key
+rec dictate --no-sounds           # Disable system sounds
 rec --help                        # Full command and option list
 ```
 
@@ -76,6 +80,24 @@ With `-s`, Liscribe records two source tracks (`mic.wav`, `speaker.wav`) and wri
 [00:03.2] YOU: ...
 [00:05.7] THEM: ...
 ```
+
+### Dictation
+
+`rec dictate` runs a persistent listener in your terminal. Double-tap **Right Option (⌥)**
+from any app — browser, Slack, notes — to start recording. Tap it once more to stop. The
+transcript is pasted at the cursor in whatever window is focused.
+
+Feedback while recording:
+- macOS system sounds at each stage (start / stop / paste / error)
+- macOS notification toasts with a preview of the pasted text
+- Live waveform + elapsed timer in the terminal window
+
+First run: macOS will prompt for **Input Monitoring** and **Accessibility** permissions in
+System Settings → Privacy & Security. Grant both, then re-run.
+
+Configure in **Preferences → Dictation** in the TUI, or directly in config.
+
+For permission setup and auto-start, see [docs/dictation-setup.md](docs/dictation-setup.md).
 
 ## Models and transcription
 
@@ -95,6 +117,9 @@ Key settings:
 | `language` | `en` | ISO 639-1 code (`en`, `fr`, `de`, ...) or `auto` for auto-detect |
 | `save_folder` | `~/transcripts` | Default output folder (override with `-f`) |
 | `open_transcript_app` | `cursor` | Editor for "Open transcript" — `cursor`, `code`, `vim`, `nvim`, or `default` |
+| `dictation_model` | `base` | Whisper model for dictation (`tiny` for fastest response) |
+| `dictation_hotkey` | `right_option` | Trigger key: `right_option`, `right_ctrl`, `right_shift`, `caps_lock` |
+| `dictation_sounds` | `true` | Play macOS system sounds for each dictation stage |
 
 ## System Requirements
 

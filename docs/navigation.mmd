@@ -12,11 +12,13 @@ flowchart TB
     Root --> REC_TRANS["rec transcribe"]
     Root --> REC_SETUP["rec setup"]
     Root --> REC_CFG["rec config"]
+    Root --> REC_DICT["rec dictate"]
 
     %% CLI-only branches (leaves) - actions
     REC_TRANS --> A_TRANS["[a] run pipeline, exit"]
     REC_SETUP --> A_SETUP["[a] check deps, configure, download"]
     REC_CFG --> A_CFG["[a] show/edit config"]
+    REC_DICT --> A_DICT["[a] listen for hotkey, record, paste — foreground terminal"]
 
     %% rec → Home branch
     REC --> Home[["[n] HomeScreen"]]
@@ -62,8 +64,10 @@ flowchart TB
     PrefsHub --> PH_Transcripts((n Transcripts))
     PrefsHub --> PH_Whisper((n Whisper))
     PrefsHub --> PH_Deps((n Dependencies))
+    PrefsHub --> PH_Dictation((n Dictation))
     PrefsHub --> PH_Back((n Back to Home ^c or esc))
 
+    PH_Dictation --> PrefsDictation[["[n] PrefsDictationScreen"]]
     PH_General --> PrefsGeneral[["[n] PrefsGeneralScreen"]]
     PH_Transcripts --> PrefsTranscripts[["[n] PrefsTranscriptsScreen"]]
     PH_Whisper --> PrefsWhisper[["[n] PrefsWhisperScreen"]]
@@ -78,6 +82,11 @@ flowchart TB
     PrefsWhisper --> PW_Back((n Back to Preferences ^c or esc))
     PrefsDeps --> PD_Install((a Download or Remove))
     PrefsDeps --> PD_Back((n Back to Preferences ^c or esc))
+
+    PrefsDictation --> PDi_Model((a Set dictation model))
+    PrefsDictation --> PDi_Hotkey((a Set hotkey))
+    PrefsDictation --> PDi_Sounds((a Toggle sounds))
+    PrefsDictation --> PDi_Back((n Back to Preferences ^c or esc))
 
     %% TranscriptsScreen branch
     Transcripts --> TS_Copy((a Copy to clipboard))
