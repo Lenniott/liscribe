@@ -31,7 +31,7 @@ import sounddevice as sd
 from rich.console import Console
 
 from liscribe.config import load_config
-from liscribe.recorder import _save_private_wav, resolve_device
+from liscribe.recorder import _save_private_wav, get_preferred_mic
 from liscribe.waveform import WaveformMonitor
 
 logger = logging.getLogger(__name__)
@@ -411,14 +411,16 @@ class DictationDaemon:
     # ------------------------------------------------------------------
 
     def _start_recording(self) -> None:
-        # Re-read mic device each session — user may hot-plug a headset
-        mic_arg = load_config().get("default_mic")
-        device_idx: int | None = None
-        if mic_arg is not None:
-            try:
-                device_idx = resolve_device(str(mic_arg))
-            except Exception as exc:
-                logger.debug("Could not resolve mic %r: %s", mic_arg, exc)
+        # Re-read config each session so mic preference changes take effect immediately
+        cfg = load_config()
+        try:
+            device_idx, used_fallback = get_preferred_mic(None, cfg)
+        except ValueError as exc:
+            logger.debug("Could not resolve mic: %s", exc)
+            device_idx = None
+            used_fallback = False
+        if used_fallback:
+            logger.debug("Saved default mic unavailable, falling back to system default")
 
         tmp_dir = Path(tempfile.mkdtemp(prefix="liscribe_dictation_"))
         recorder = _DictationRecorder(device_idx, self._sample_rate, self._channels)
@@ -542,6 +544,21 @@ class DictationDaemon:
             with self._state_lock:
                 self._state = _State.IDLE
             return
+
+        # Press Return after paste if auto-enter is enabled.
+        # Re-read config here so the toggle takes effect without restarting the daemon.
+        # Guard: skip if the text already ends with a newline to avoid a double blank line.
+        if load_config().get("dictation_auto_enter", True) and not text.endswith("\n"):
+            try:
+                from pynput.keyboard import Controller, Key
+                kb = Controller()
+                # Use _PASTE_LAND (0.10s) — the same settle time used for the paste itself —
+                # to ensure the pasted text has landed before Enter fires.
+                time.sleep(_PASTE_LAND)
+                kb.press(Key.enter)
+                kb.release(Key.enter)
+            except Exception as exc:
+                logger.debug("Auto-enter failed: %s", exc)
 
         word_count = len(text.split())
         preview = text[:60] + ("\u2026" if len(text) > 60 else "")

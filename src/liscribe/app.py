@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import atexit
+import logging
+import signal
 from pathlib import Path
+from typing import Any
 
 from textual.app import App
 
@@ -20,6 +24,8 @@ from liscribe.screens.modals import ConfirmCancelScreen, MicSelectScreen
 from liscribe.screens.recording import RecordingResult, RecordingScreen
 from liscribe.screens.transcribing import TranscribingScreen
 from liscribe.screens.help_screen import HelpScreen
+
+logger = logging.getLogger(__name__)
 
 
 class LiscribeApp(App[None]):
@@ -42,6 +48,12 @@ class LiscribeApp(App[None]):
         self._speaker = speaker
         self._mic = mic
         self._prog_name = prog_name
+        self._emergency_save_triggered = False
+        self._original_sigterm = signal.getsignal(signal.SIGTERM)
+        self._original_sighup = signal.getsignal(signal.SIGHUP)
+        signal.signal(signal.SIGTERM, self._handle_terminate)
+        signal.signal(signal.SIGHUP, self._handle_terminate)
+        atexit.register(self._atexit_save)
 
     def on_mount(self) -> None:
         try:
@@ -98,6 +110,38 @@ class LiscribeApp(App[None]):
     def _on_transcribing_done(self, _: None) -> None:
         self.push_screen(HomeScreen())
 
+    def _handle_terminate(self, signum: int, frame: Any) -> None:
+        """Save any in-progress recording on SIGTERM or SIGHUP (e.g. terminal close)."""
+        if self._emergency_save_triggered:
+            return
+        self._emergency_save_triggered = True
+
+        screen = self.screen
+        if isinstance(screen, RecordingScreen) and screen.session:
+            try:
+                self.call_from_thread(screen.action_stop_save)
+            except Exception:
+                # Event loop may already be shutting down — call directly as fallback
+                try:
+                    screen.session._stop_and_save()
+                except Exception:
+                    logger.exception("Emergency save failed during signal %s", signum)
+
+        signal.signal(signal.SIGTERM, self._original_sigterm)
+        signal.signal(signal.SIGHUP, self._original_sighup)
+
+    def _atexit_save(self) -> None:
+        """Last-resort: save audio still in RAM if signal handler didn't fire."""
+        if self._emergency_save_triggered:
+            return
+        try:
+            screen = self.screen
+            if isinstance(screen, RecordingScreen) and screen.session:
+                if screen.session._mic_chunks:
+                    screen.session._stop_and_save()
+        except Exception:
+            pass
+
     def on_home_record_request(self, _: HomeRecordRequest) -> None:
         folder = self._folder
         if not folder:
@@ -106,7 +150,6 @@ class LiscribeApp(App[None]):
                 folder = str(Path.cwd() / "docs" / "transcripts")
             else:
                 folder = cfg.get("save_folder", "~/transcripts")
-        Path(folder).expanduser().resolve().mkdir(parents=True, exist_ok=True)
         self.push_screen(
             RecordingScreen(
                 folder=folder,

@@ -33,8 +33,10 @@ class PrefsDictationScreen(BackScreen):
     def compose(self):
         cfg = load_config()
         current_model = cfg.get("dictation_model", "base")
-        current_hotkey = cfg.get("dictation_hotkey", "right_ctrl")
+        current_hotkey = cfg.get("dictation_hotkey", "right_option")
         sounds_on = bool(cfg.get("dictation_sounds", True))
+        auto_enter_on = bool(cfg.get("dictation_auto_enter", True))
+        alias = cfg.get("command_alias", "rec") or "rec"
 
         with Vertical(classes="screen-frame"):
             yield TopBar(variant="compact", section="Dictation")
@@ -57,12 +59,17 @@ class PrefsDictationScreen(BackScreen):
                     id="hotkey-label",
                 )
                 hotkey_desc.border_title = "Hotkey"
-                hotkey_desc.border_subtitle = (
-                    "right_ctrl / left_ctrl / right_shift / caps_lock"
-                )
+                # Derived from VALID_HOTKEYS so it never drifts out of sync
+                hotkey_desc.border_subtitle = " / ".join(k for k, _ in _HOTKEY_ITEMS)
                 with Horizontal(classes="top-container"):
                     yield hotkey_desc
 
+                current_hotkey_display = VALID_HOTKEYS.get(current_hotkey, current_hotkey)
+                yield Static(
+                    f"  Currently selected: {current_hotkey_display}   \u00b7   click a key below to change",
+                    id="hotkey-current-label",
+                    classes="help-text",
+                )
                 yield Static("")
                 with Horizontal(id="hotkey-row", classes="hug-container"):
                     for key_id, key_label in _HOTKEY_ITEMS:
@@ -87,6 +94,30 @@ class PrefsDictationScreen(BackScreen):
                 )
                 with Horizontal(classes="top-container"):
                     yield sounds_switch
+
+                yield Static("")
+
+                # ── Auto-enter ─────────────────────────────────────────
+                auto_enter_switch = Switch(
+                    value=auto_enter_on, id="auto-enter-switch", classes="switch-input"
+                )
+                auto_enter_switch.border_title = "Auto-enter after paste"
+                auto_enter_switch.border_subtitle = (
+                    "Press Return after pasting — great for chats; turn off for documents"
+                )
+                with Horizontal(classes="top-container"):
+                    yield auto_enter_switch
+
+                yield Static("")
+
+                # ── Usage note ─────────────────────────────────────────
+                usage_note = Static(
+                    f"  Run [bold]{alias} dictate[/bold] in a terminal to start the dictation daemon.",
+                    id="dictation-usage-note",
+                )
+                usage_note.border_title = "How to use dictation"
+                with Horizontal(classes="top-container"):
+                    yield usage_note
 
                 yield Static("")
 
@@ -132,14 +163,18 @@ class PrefsDictationScreen(BackScreen):
             container.mount(row)
 
     def on_switch_changed(self, event: Switch.Changed) -> None:
-        """Auto-save sounds toggle on change."""
-        if event.switch.id != "sounds-switch":
-            return
-        cfg = load_config()
-        cfg["dictation_sounds"] = bool(event.value)
-        save_config(cfg)
-        label = "on" if event.value else "off"
-        self.notify(f"Sounds {label}.")
+        """Auto-save toggle changes."""
+        sid = event.switch.id
+        if sid == "sounds-switch":
+            cfg = load_config()
+            cfg["dictation_sounds"] = bool(event.value)
+            save_config(cfg)
+            self.notify(f"Sounds {'on' if event.value else 'off'}.")
+        elif sid == "auto-enter-switch":
+            cfg = load_config()
+            cfg["dictation_auto_enter"] = bool(event.value)
+            save_config(cfg)
+            self.notify(f"Auto-enter {'on' if event.value else 'off'}.")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
@@ -175,7 +210,14 @@ class PrefsDictationScreen(BackScreen):
             return
 
     def _update_hotkey_buttons(self, active_hotkey: str) -> None:
-        """Update button styles to reflect the newly selected hotkey."""
+        """Update button styles and current-label to reflect the newly selected hotkey."""
+        display = VALID_HOTKEYS.get(active_hotkey, active_hotkey)
+        try:
+            self.query_one("#hotkey-current-label", Static).update(
+                f"  Currently selected: {display}   \u00b7   click a key below to change"
+            )
+        except Exception:
+            pass
         for key_id, _ in _HOTKEY_ITEMS:
             try:
                 btn = self.query_one(f"#hotkey-{key_id}", Button)

@@ -89,6 +89,10 @@ DEFAULTS: dict[str, dict[str, Any]] = {
         "value": True,
         "description": "Play macOS system sounds for dictation start, stop, and completion.",
     },
+    "dictation_auto_enter": {
+        "value": True,
+        "description": "After pasting dictated text, automatically press Return to submit (e.g. in chat apps). Disable for documents or multi-line composition.",
+    },
 }
 
 

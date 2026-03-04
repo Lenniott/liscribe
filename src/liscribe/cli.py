@@ -528,7 +528,6 @@ def main(
     resolved_folder: str | None = None
     if land_on == "record":
         resolved_folder = _resolve_folder(folder, here)
-        Path(resolved_folder).expanduser().resolve().mkdir(parents=True, exist_ok=True)
     _launch_tui(
         land_on=land_on,
         folder=resolved_folder,

@@ -143,6 +143,50 @@ def resolve_device(mic: str | None) -> int | None:
     raise ValueError(f"No input device matching '{mic}' found.")
 
 
+def resolve_saved_mic(name: str) -> int | None:
+    """Resolve a saved default mic preference by exact name match (case-insensitive).
+
+    Unlike resolve_device(), this does NOT use substring matching, which would
+    silently match the wrong device when multiple mics share a name fragment.
+    Returns the device index, or None if no exact match is found.
+    """
+    name_lower = name.lower().strip()
+    for dev in list_input_devices():
+        if dev["name"].lower().strip() == name_lower:
+            return dev["index"]
+    return None
+
+
+def get_preferred_mic(
+    cli_arg: str | None,
+    cfg: dict[str, Any],
+) -> tuple[int | None, bool]:
+    """Resolve the best available mic from CLI arg, saved config, or system default.
+
+    Priority: cli_arg → default_mic config → system default (None).
+
+    Returns:
+        (device_idx, used_fallback) where:
+        - device_idx is the resolved index, or None for system default.
+        - used_fallback is True when the saved config preference was unavailable
+          and the caller should warn the user.
+
+    Raises ValueError if cli_arg is provided but cannot be resolved (user error).
+    """
+    if cli_arg:
+        # Explicit --mic flag: use resolve_device (substring OK, user is present)
+        return resolve_device(cli_arg), False
+    saved = cfg.get("default_mic")
+    if saved:
+        idx = resolve_saved_mic(str(saved))
+        if idx is not None:
+            return idx, False
+        # Saved preference not found (device unplugged etc.) — fall back, signal caller
+        return None, True
+    # No preference set — use system default, no warning needed
+    return None, False
+
+
 def _find_blackhole_device(name_hint: str = "BlackHole 2ch") -> int | None:
     """Find the BlackHole input device index."""
     hint_lower = name_hint.lower()
@@ -168,7 +212,6 @@ class RecordingSession:
         self.blackhole_name: str = cfg.get("blackhole_device", "BlackHole 2ch")
 
         self.save_dir = Path(folder).expanduser().resolve()
-        self.save_dir.mkdir(parents=True, exist_ok=True)
 
         self.speaker = speaker
         self.mic_arg = mic
@@ -466,6 +509,9 @@ class RecordingSession:
             self._speaker_chunks.clear()
 
             mic_audio = mic_audio.astype(np.float32)
+
+        # Create save directory only when we have audio to write
+        self.save_dir.mkdir(parents=True, exist_ok=True)
 
         # Generate filename and save
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
