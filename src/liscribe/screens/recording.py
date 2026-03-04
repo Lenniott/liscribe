@@ -58,6 +58,7 @@ class RecordingScreen(Screen[RecordingResult]):
         self._note_collection = NoteCollection()
         self._start_time: float = 0.0
         self._exit_error_message: str | None = None
+        self._save_triggered: bool = False
 
     def compose(self):
         with Vertical(classes="screen-frame"):
@@ -290,6 +291,9 @@ class RecordingScreen(Screen[RecordingResult]):
         event.input.value = ""
 
     def action_stop_save(self) -> None:
+        if self._save_triggered:
+            return
+        self._save_triggered = True
         if self.session:
             path = self.session._stop_and_save()
             self.dismiss((path, self._note_collection.notes))
