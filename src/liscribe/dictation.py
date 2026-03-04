@@ -58,10 +58,11 @@ _PASTE_LAND: float = 0.10
 # ---------------------------------------------------------------------------
 
 VALID_HOTKEYS: dict[str, str] = {
-    "right_ctrl":  "Right Ctrl",
-    "left_ctrl":   "Left Ctrl",
-    "right_shift": "Right Shift",
-    "caps_lock":   "Caps Lock",
+    "right_option": "Right Option",
+    "right_ctrl":   "Right Ctrl",
+    "left_ctrl":    "Left Ctrl",
+    "right_shift":  "Right Shift",
+    "caps_lock":    "Caps Lock",
 }
 
 # ---------------------------------------------------------------------------
@@ -304,10 +305,11 @@ class DictationDaemon:
             sys.exit(1)
 
         pynput_key_map: dict[str, Any] = {
-            "right_ctrl":  _kb.Key.ctrl_r,
-            "left_ctrl":   _kb.Key.ctrl_l,
-            "right_shift": _kb.Key.shift_r,
-            "caps_lock":   _kb.Key.caps_lock,
+            "right_option": _kb.Key.alt_r,
+            "right_ctrl":   _kb.Key.ctrl_r,
+            "left_ctrl":    _kb.Key.ctrl_l,
+            "right_shift":  _kb.Key.shift_r,
+            "caps_lock":    _kb.Key.caps_lock,
         }
         self._target_key = pynput_key_map[self._hotkey_key]
         hotkey_display = VALID_HOTKEYS[self._hotkey_key]

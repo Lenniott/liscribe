@@ -82,8 +82,8 @@ DEFAULTS: dict[str, dict[str, Any]] = {
         "description": "Whisper model for dictation mode: tiny, base, small, medium, large. Use tiny/base for fastest response.",
     },
     "dictation_hotkey": {
-        "value": "right_ctrl",
-        "description": "Key to double-tap to start dictation. Options: right_ctrl, left_ctrl, right_shift, caps_lock.",
+        "value": "right_option",
+        "description": "Key to double-tap to start dictation. Options: right_option, right_ctrl, left_ctrl, right_shift, caps_lock.",
     },
     "dictation_sounds": {
         "value": True,
