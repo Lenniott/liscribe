@@ -16,6 +16,9 @@ dependencies = [
     "scipy>=1.11.0",
     "numpy>=1.24.0,<2.0.0",
     "pyperclip>=1.9.0",
+    "rumps>=0.4.0",
+    "pywebview>=5.0.0",
+    "pynput>=1.7.6",
 ]
 
 [project.optional-dependencies]

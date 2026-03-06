@@ -321,7 +321,8 @@ Opens from menu bar → Settings. Standard Mac settings window (not a popover).
  │  General ◀   │  Default save folder                   │
  │  Models      │  ┌──────────────────────────────────┐  │
  │  Hotkeys     │  │  ~/transcripts           Browse  │  │
- │  Deps        │  └──────────────────────────────────┘  │
+ │  Replacements│  └──────────────────────────────────┘  │
+ │  Deps        │                                        │
  │              │                                        │
  │              │  Default microphone                    │
  │              │  [ MacBook Pro Microphone          ▾]  │
@@ -355,9 +356,9 @@ Opens from menu bar → Settings. Standard Mac settings window (not a popover).
  │  General     │  Whisper Models                        │
  │  Models  ◀   │                                        │
  │  Hotkeys     │  tiny    ~75MB    ✓ Downloaded  [Remove]│
- │  Deps        │  base    ~145MB   ✓ Downloaded  [Remove]│
- │              │  small   ~466MB   [  Download  ]       │
- │              │  medium  ~1.5GB   [  Download  ]       │
+ │  Replacements│  base    ~145MB   ✓ Downloaded  [Remove]│
+ │  Deps        │  small   ~466MB   [  Download  ]       │
+ │  Help        │  medium  ~1.5GB   [  Download  ]       │
  │              │  large   ~3GB     [  Download  ]       │
  │              │                                        │
  │              │  Scribe default models                 │
@@ -381,7 +382,8 @@ Opens from menu bar → Settings. Standard Mac settings window (not a popover).
  │  General     │  Keyboard Shortcuts                    │
  │  Models      │                                        │
  │  Hotkeys ◀   │  Open Scribe                           │
- │  Deps        │  [ ⌃ ⌥ L                    Change ]  │
+ │  Replacements│  [ ⌃ ⌥ L                    Change ]  │
+ │  Deps        │                                        │
  │              │                                        │
  │              │  Dictate trigger key                   │
  │              │  [ Right Control             Change ]  │
@@ -408,8 +410,8 @@ Notes:
  │  General     │  Permissions                           │
  │  Models      │                                        │
  │  Hotkeys     │  Microphone         ✓ Granted          │
- │  Deps    ◀   │  Accessibility      ✗ [ Open Settings ]│
- │              │  Input Monitoring   ✓ Granted          │
+ │  Replacements│  Accessibility      ✗ [ Open Settings ]│
+ │  Deps    ◀   │  Input Monitoring   ✓ Granted          │
  │              │                                        │
  │              │  Audio Dependencies                    │
  │              │                                        │
@@ -437,9 +439,9 @@ Notes:
  │  General     │  ┌────────────────────────────────┐   │
  │  Models      │  │  Getting Started                │   │
  │  Hotkeys     │  │  ▸ How to use Scribe            │   │
- │  Deps        │  │  ▸ How to use Dictate           │   │
- │  Help    ◀   │  │  ▸ How to use Transcribe        │   │
- │              │  └────────────────────────────────┘   │
+ │  Replacements│  │  ▸ How to use Dictate           │   │
+ │  Deps        │  │  ▸ How to use Transcribe        │   │
+ │  Help    ◀   │  └────────────────────────────────┘   │
  │              │                                        │
  │              │  ┌────────────────────────────────┐   │
  │              │  │  Setup & Configuration          │   │
@@ -609,6 +611,120 @@ If Accessibility or Input Monitoring permission is missing when Dictate fires, t
 - [ ] Privacy policy is readable inline — no network access required
 - [ ] GitHub link opens in default browser
 - [ ] Setup Required modal fires for any workflow that requires a missing configuration — not just Dictate
+
+---
+
+## Word Replacement
+
+Liscribe produces text from speech. Users cannot type during recording, so
+certain characters and formatting cannot be spoken naturally. Word Replacement
+substitutes spoken trigger words with defined output text at the point of
+text production — after transcription, before file write or paste.
+
+**Example:** the user says "hashtag project" — the output reads "# project".
+
+### Three replacement types
+
+**Simple** — a trigger word is replaced by a fixed string:
+```
+spoken:  "hashtag"   →   output: "#"
+spoken:  "todo"      →   output: "[ ]"
+```
+
+**Newline** — a trigger word is replaced by a line break:
+```
+spoken:  "newline"   →   output: "\n"
+```
+
+**Wrap** — a trigger word is removed and the immediately following word is
+wrapped in a prefix and a suffix. Applies to the next word only.
+```
+spoken:  "bold hello"       →   output: "**hello**"   (prefix="**" suffix="**")
+spoken:  "highlight done"   →   output: "==done=="     (prefix="==" suffix="==")
+```
+
+### Matching rules
+
+- Matching is always case-insensitive
+- Trigger words must match whole words — `"hash"` does not match inside `"hashtag"`
+- Replacement happens after transcription, before output is written to file or pasted
+
+### Scope
+
+Each rule has one of three scope values:
+
+| Scope | Applies to |
+|---|---|
+| Transcripts | Scribe and Transcribe file output only |
+| Dictate | Dictate paste output only |
+| Both | All output — Scribe, Transcribe, and Dictate |
+
+### Default rules (ship with the app)
+
+| Trigger | Output | Type | Scope |
+|---|---|---|---|
+| hashtag | # | simple | both |
+| todo | [ ] | simple | both |
+| open bracket | [ | simple | both |
+| close bracket | ] | simple | both |
+| dash | - | simple | both |
+| newline | ↵ | newline | both |
+
+### Settings — Replacements tab
+
+```
+ ┌───────────────────────────────────────────────────────┐
+ │  Settings                                         ✕   │
+ ├──────────────┬────────────────────────────────────────┤
+ │              │                                        │
+ │  General     │  Word Replacements                     │
+ │  Models      │                                        │
+ │  Hotkeys     │  Trigger       Output    Type   Scope  │
+ │  Replacements│  ──────────────────────────────────    │
+ │  Deps        │  hashtag       #         simple  both  │
+ │  Help        │  todo          [ ]       simple  both  │
+ │              │  open bracket  [         simple  both  │
+ │              │  close bracket ]         simple  both  │
+ │              │  dash          -         simple  both  │
+ │              │  newline       ↵         newline both  │
+ │              │                                        │
+ │              │  [ + Add replacement ]                 │
+ │              │                                        │
+ └──────────────┴────────────────────────────────────────┘
+```
+
+Add / Edit rule form (shown inline):
+
+```
+ Trigger word   [ _____________ ]
+ Type           ( ) Simple  ( ) Newline  ( ) Wrap
+ Output / Prefix [ _____________ ]
+ Suffix (wrap)   [ _____________ ]   ← shown only for Wrap type
+ Scope          ( ) Transcripts  ( ) Dictate  (●) Both
+ [ Save ]  [ Cancel ]
+```
+
+### Success criteria
+
+- [ ] Default rules are present on first launch without any manual setup
+- [ ] Default rules survive app restarts and config reloads unchanged
+- [ ] User can add a rule specifying trigger, type, output/prefix, suffix, and scope
+- [ ] User can edit any existing rule, including the defaults
+- [ ] User can delete any rule; deleting a default rule shows a confirmation prompt before proceeding
+- [ ] Case-insensitive whole-word matching — `Hashtag`, `hashtag`, and `HASHTAG` all match the same rule
+- [ ] Substring non-match — a rule for `"hash"` does not fire when the word is `"hashtag"`
+- [ ] Simple replacement: trigger word replaced by the output string
+- [ ] Newline replacement: trigger word replaced by a line break at that position
+- [ ] Wrap replacement: trigger word removed, next word wrapped in prefix + suffix
+- [ ] Wrap replacement: if the trigger is the last word, output is unchanged
+- [ ] Scope Transcripts: rule applies to Scribe and Transcribe file output, not to Dictate paste
+- [ ] Scope Dictate: rule applies to Dictate paste output, not to Scribe or Transcribe files
+- [ ] Scope Both: rule applies to all output — Scribe, Transcribe, and Dictate
+- [ ] Replacements applied after transcription, before file write or paste — never mid-recording
+- [ ] Multiple rules applied in sequence in the order they appear in the list
+- [ ] Rules persist across app restarts
+- [ ] Empty trigger or empty output shows an inline validation error and is never saved to config
+- [ ] Engine function `replacements.apply()` has zero imports outside Python stdlib
 
 ---
 

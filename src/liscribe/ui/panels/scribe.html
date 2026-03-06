@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scribe</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <style>
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .control-row .section-label { min-width: 108px; margin-bottom: 0; }
+    .control-row select { flex: 1; }
+    .model-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .path-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .path-display {
+      flex: 1;
+      color: var(--text-muted);
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .fallback-warning { display: none; color: #ff9f0a; font-size: 11px; margin-top: 2px; }
+    .fallback-warning.visible { display: block; }
+    .model-progress-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .model-progress-row .model-name { min-width: 60px; font-size: 12px; font-weight: 500; }
+    .model-progress-row .progress-track { flex: 1; height: 6px; }
+    .model-progress-row .progress-label {
+      min-width: 52px; font-size: 11px; color: var(--text-muted); text-align: right;
+    }
+    .file-path-line { font-size: 11px; color: var(--text-muted); word-break: break-all; margin-top: 2px; }
+    .view { display: none; flex-direction: column; height: 100%; }
+    .view.active { display: flex; }
+    #cancel-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.6); z-index: 100;
+      align-items: center; justify-content: center; padding: 24px;
+    }
+    #cancel-overlay.visible { display: flex; }
+    .overlay-card {
+      background: var(--bg-elevated); border-radius: var(--radius-lg);
+      padding: 24px; width: 100%; max-width: 340px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- RECORDING VIEW -->
+  <div id="view-recording" class="view active">
+    <div class="panel-header">
+      <div class="row" style="gap:8px">
+        <span class="rec-dot"></span>
+        <span class="panel-title">Scribe</span>
+      </div>
+      <span class="timer" id="timer">00:00:00</span>
+    </div>
+
+    <div class="panel-body">
+      <div class="waveform" id="waveform" style="margin-bottom:12px"></div>
+
+      <textarea id="notes-input" rows="3"
+        placeholder="Add a note… (Enter to save)"
+        style="margin-bottom:12px" autofocus></textarea>
+
+      <div class="control-row">
+        <span class="section-label">Mic</span>
+        <select id="mic-select"></select>
+      </div>
+      <div class="fallback-warning" id="fallback-warning">
+        ⚠ Preferred mic not found — using system default
+      </div>
+
+      <div class="control-row" style="margin-bottom:4px">
+        <span class="section-label">Speaker capture</span>
+        <label class="toggle">
+          <input type="checkbox" id="speaker-toggle">
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          <span id="speaker-label" style="font-size:12px;color:var(--text-muted)">OFF</span>
+        </label>
+      </div>
+      <div id="speaker-error" style="display:none;color:#ff453a;font-size:11px;margin-bottom:8px"></div>
+
+      <div style="margin-bottom:10px">
+        <div class="section-label">Models</div>
+        <div id="model-checkboxes" class="model-row"></div>
+      </div>
+
+      <div class="path-row">
+        <span class="path-display" id="save-path-display">~/transcripts</span>
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px"
+          id="change-path-btn">Change</button>
+      </div>
+    </div>
+
+    <div class="panel-footer">
+      <button class="btn btn-ghost" style="flex:1" id="cancel-btn">Cancel</button>
+      <button class="btn btn-danger" style="flex:1" id="stop-btn">&#9632; Stop &amp; Save</button>
+    </div>
+  </div>
+
+  <!-- TRANSCRIBING VIEW -->
+  <div id="view-transcribing" class="view">
+    <div class="panel-header">
+      <span class="panel-title">Scribe — Transcribing</span>
+    </div>
+    <div class="panel-body">
+      <div id="transcribe-saving-to"
+        style="margin-bottom:16px;color:var(--text-muted);font-size:12px">
+        Saving to ~/transcripts/
+      </div>
+      <div id="model-progress-list"></div>
+    </div>
+  </div>
+
+  <!-- NO-MODEL VIEW -->
+  <div id="view-no-model" class="view">
+    <div class="panel-header">
+      <span class="panel-title">Scribe — Recording Saved</span>
+    </div>
+    <div class="panel-body" style="justify-content:center">
+      <div style="margin-bottom:12px">
+        <div class="section-label" style="margin-bottom:4px">Audio saved to:</div>
+        <div class="file-path-line" id="no-model-wav-path"></div>
+      </div>
+      <div style="color:var(--text-muted);font-size:12px;margin-bottom:16px">
+        No transcription model was available.<br>
+        You can transcribe this file later.
+      </div>
+      <button class="btn btn-primary btn-full" id="open-transcribe-btn">
+        Open in Transcribe &#8594;
+      </button>
+    </div>
+  </div>
+
+  <!-- CANCEL OVERLAY -->
+  <div id="cancel-overlay">
+    <div class="overlay-card">
+      <h2 style="margin-bottom:8px">Recording in progress</h2>
+      <p style="color:var(--text-muted);margin-bottom:20px">Stop and save, or discard?</p>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" style="flex:1" id="discard-btn">Discard</button>
+        <button class="btn btn-danger" style="flex:1" id="confirm-stop-btn">Stop &amp; Save</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const POLL_WAVEFORM_MS   = 80;
+  const POLL_TIMER_MS      = 500;
+  const POLL_PROGRESS_MS   = 600;
+  const WAVEFORM_BAR_COUNT = 32;
+
+  let timerInterval    = null;
+  let waveformInterval = null;
+  let progressInterval = null;
+  let pendingWavPath   = null;
+  let isRecording      = true;
+
+  // ── Helpers ──────────────────────────────────────────────────────────
+
+  function el(id) { return document.getElementById(id); }
+
+  function showView(id) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    const target = el(id);
+    if (target) target.classList.add('active');
+  }
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function formatTime(secs) {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = Math.floor(secs % 60);
+    return pad(h) + ':' + pad(m) + ':' + pad(s);
+  }
+
+  function clearChildren(node) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  // ── Waveform ─────────────────────────────────────────────────────────
+
+  function buildWaveformBars() {
+    const wf = el('waveform');
+    clearChildren(wf);
+    for (let i = 0; i < WAVEFORM_BAR_COUNT; i++) {
+      const bar = document.createElement('div');
+      bar.className = 'waveform-bar';
+      bar.style.height = '4px';
+      wf.appendChild(bar);
+    }
+  }
+
+  async function updateWaveform() {
+    try {
+      const levels = await pywebview.api.get_waveform();
+      const bars = document.querySelectorAll('.waveform-bar');
+      levels.forEach((lvl, i) => {
+        if (bars[i]) {
+          bars[i].style.height = Math.max(3, Math.round(lvl * 44)) + 'px';
+        }
+      });
+    } catch (_) {}
+  }
+
+  async function updateTimer() {
+    try {
+      const elapsed = await pywebview.api.get_elapsed();
+      el('timer').textContent = formatTime(elapsed);
+    } catch (_) {}
+  }
+
+  // ── Mic select ───────────────────────────────────────────────────────
+
+  function populateMicSelect(mics, isFallback) {
+    const sel = el('mic-select');
+    clearChildren(sel);
+    mics.forEach(mic => {
+      const opt = document.createElement('option');
+      opt.value = mic.name;
+      opt.textContent = mic.name + (mic.is_default ? ' (default)' : '');
+      sel.appendChild(opt);
+    });
+    el('fallback-warning').classList.toggle('visible', !!isFallback);
+  }
+
+  // ── Model checkboxes ─────────────────────────────────────────────────
+
+  function populateModelCheckboxes(models) {
+    const container = el('model-checkboxes');
+    clearChildren(container);
+    models.forEach(m => {
+      if (!m.is_downloaded) return;
+      const label = document.createElement('label');
+      label.style.cssText = 'display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = m.is_selected;
+      const name = m.name;
+      cb.addEventListener('change', () => pywebview.api.toggle_model(name, cb.checked));
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(m.name));
+      container.appendChild(label);
+    });
+  }
+
+  // ── Progress list ────────────────────────────────────────────────────
+
+  function renderProgressList(transcripts) {
+    const list = el('model-progress-list');
+    clearChildren(list);
+
+    transcripts.forEach(t => {
+      const row = document.createElement('div');
+      row.className = 'model-progress-row';
+      row.id = 'progress-' + t.model_name;
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'model-name';
+      nameSpan.textContent = t.model_name;
+
+      const track = document.createElement('div');
+      track.className = 'progress-track';
+      const fill = document.createElement('div');
+      fill.className = 'progress-fill';
+      fill.id = 'fill-' + t.model_name;
+      fill.style.width = '0%';
+      track.appendChild(fill);
+
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'progress-label';
+      labelSpan.id = 'label-' + t.model_name;
+      labelSpan.textContent = 'queued';
+
+      row.appendChild(nameSpan);
+      row.appendChild(track);
+      row.appendChild(labelSpan);
+      list.appendChild(row);
+
+      const pathLine = document.createElement('div');
+      pathLine.className = 'file-path-line';
+      pathLine.id = 'path-' + t.model_name;
+      list.appendChild(pathLine);
+    });
+  }
+
+  async function pollProgress() {
+    try {
+      const progress = await pywebview.api.get_transcription_progress();
+      let allDone = progress.length > 0;
+
+      progress.forEach(p => {
+        const pct      = Math.round(p.progress * 100);
+        const fillEl   = el('fill-'  + p.model_name);
+        const labelEl  = el('label-' + p.model_name);
+        const pathEl   = el('path-'  + p.model_name);
+
+        if (fillEl)  fillEl.style.width = pct + '%';
+        if (labelEl) {
+          if (p.error)        labelEl.textContent = 'error';
+          else if (p.is_done) labelEl.textContent = 'done \u2713';
+          else                labelEl.textContent = pct + '%';
+        }
+        if (pathEl && p.md_path) pathEl.textContent = p.md_path;
+        if (!p.is_done) allDone = false;
+      });
+
+      if (allDone) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
+    } catch (err) {
+      console.error('pollProgress:', err);
+    }
+  }
+
+  // ── Event wiring ─────────────────────────────────────────────────────
+
+  el('speaker-toggle').addEventListener('change', async function () {
+    const enabled = this.checked;
+    el('speaker-label').textContent = enabled ? 'ON' : 'OFF';
+    try {
+      const res = await pywebview.api.toggle_speaker(enabled);
+      const errEl = el('speaker-error');
+      if (!res.ok) {
+        this.checked = false;
+        el('speaker-label').textContent = 'OFF';
+        errEl.textContent = res.error;
+        errEl.style.display = 'block';
+      } else {
+        errEl.style.display = 'none';
+      }
+    } catch (err) {
+      console.error('toggle_speaker:', err);
+    }
+  });
+
+  el('notes-input').addEventListener('keydown', async function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const text = this.value.trim();
+      if (!text) return;
+      try {
+        const res = await pywebview.api.add_note(text);
+        if (res.ok) this.value = '';
+      } catch (err) {
+        console.error('add_note:', err);
+      }
+    }
+  });
+
+  el('mic-select').addEventListener('change', function () {
+    pywebview.api.set_mic(this.value);
+  });
+
+  el('change-path-btn').addEventListener('click', async function () {
+    const current = el('save-path-display').textContent;
+    const newPath = window.prompt('Save transcripts to:', current);
+    if (newPath && newPath !== current) {
+      await pywebview.api.set_save_path(newPath);
+      el('save-path-display').textContent = newPath;
+    }
+  });
+
+  el('cancel-btn').addEventListener('click', function () {
+    el('cancel-overlay').classList.add('visible');
+  });
+
+  el('stop-btn').addEventListener('click', doStopAndSave);
+
+  el('discard-btn').addEventListener('click', async function () {
+    el('cancel-overlay').classList.remove('visible');
+    isRecording = false;
+    stopPolling();
+    try { await pywebview.api.cancel(); } catch (_) {}
+    window.close();
+  });
+
+  el('confirm-stop-btn').addEventListener('click', function () {
+    el('cancel-overlay').classList.remove('visible');
+    doStopAndSave();
+  });
+
+  el('open-transcribe-btn').addEventListener('click', async function () {
+    if (pendingWavPath) {
+      await pywebview.api.open_in_transcribe(pendingWavPath);
+    }
+    window.close();
+  });
+
+  // ── Stop & Save ──────────────────────────────────────────────────────
+
+  async function doStopAndSave() {
+    isRecording = false;
+    stopPolling();
+    showView('view-transcribing');
+
+    try {
+      const result = await pywebview.api.stop_and_save();
+
+      if (!result.ok) {
+        console.error('stop_and_save error:', result.error);
+        return;
+      }
+
+      if (result.is_no_model_mode) {
+        pendingWavPath = result.wav_path;
+        el('no-model-wav-path').textContent = result.wav_path || '';
+        showView('view-no-model');
+        return;
+      }
+
+      el('transcribe-saving-to').textContent =
+        'Saving to ' + (result.save_folder || '~/transcripts') + '/';
+      renderProgressList(result.transcripts || []);
+      progressInterval = setInterval(pollProgress, POLL_PROGRESS_MS);
+
+    } catch (err) {
+      console.error('doStopAndSave:', err);
+    }
+  }
+
+  function stopPolling() {
+    clearInterval(waveformInterval);
+    clearInterval(timerInterval);
+    waveformInterval = null;
+    timerInterval    = null;
+  }
+
+  // ── Init ─────────────────────────────────────────────────────────────
+
+  window.addEventListener('load', async () => {
+    buildWaveformBars();
+
+    try {
+      const state = await pywebview.api.get_state();
+      el('save-path-display').textContent = state.save_path;
+
+      const mics = await pywebview.api.get_mics();
+      populateMicSelect(mics, state.is_using_fallback_mic);
+
+      const models = await pywebview.api.get_models();
+      populateModelCheckboxes(models);
+    } catch (err) {
+      console.error('init error:', err);
+    }
+
+    waveformInterval = setInterval(updateWaveform, POLL_WAVEFORM_MS);
+    timerInterval    = setInterval(updateTimer,    POLL_TIMER_MS);
+  });
+
+  // Intercept close gesture during recording
+  window.addEventListener('beforeunload', function (e) {
+    if (isRecording) {
+      e.preventDefault();
+      e.returnValue = '';
+      el('cancel-overlay').classList.add('visible');
+      return '';
+    }
+  });
+</script>
+</body>
+</html>
