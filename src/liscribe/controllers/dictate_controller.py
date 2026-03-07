@@ -153,12 +153,14 @@ class DictateController:
         config: "ConfigService",
         can_dictate: Callable[[], tuple[bool, list[str]]] | None = None,
         on_paste_complete: Callable[[], None] | None = None,
+        run_on_main: Callable[[Callable[[], None]], None] | None = None,
     ) -> None:
         self._audio = audio
         self._model = model
         self._config = config
         self._can_dictate = can_dictate or _default_can_dictate
         self._on_paste_complete = on_paste_complete
+        self._run_on_main = run_on_main
 
         self._state = DictateState.IDLE
         self._is_hold_mode: bool = False
@@ -288,6 +290,47 @@ class DictateController:
         worker.start()
         return {"ok": True}
 
+    def _do_paste_on_main(self, target: str | None, text: str) -> None:
+        """Run on main thread: clipboard, optionally activate target app, always paste, optional Enter, notify, on_paste_complete."""
+        try:
+            import pyperclip
+
+            pyperclip.copy(text)
+        except Exception as exc:
+            logger.error("DictateController: clipboard copy failed: %s", exc)
+            if self._on_paste_complete:
+                self._on_paste_complete()
+            return
+        # Activate target app first only when we have one; paste always runs (into that app or current frontmost).
+        if target:
+            try:
+                _activate_bundle(target)
+            except Exception as exc:
+                logger.warning("DictateController: activate bundle failed: %s", exc)
+        try:
+            _simulate_paste()
+        except Exception as exc:
+            logger.warning("DictateController: simulate paste failed: %s", exc)
+            _notify("Dictated text copied to clipboard", text[:80])
+            if self._on_paste_complete:
+                self._on_paste_complete()
+            return
+        # Enter only when the setting is on (and we had a target to paste into).
+        if target and self._config.dictation_auto_enter:
+            try:
+                time.sleep(0.12)
+                _simulate_enter()
+            except Exception as exc:
+                logger.debug("DictateController: simulate enter failed: %s", exc)
+        if self._on_paste_complete:
+            self._on_paste_complete()
+
+    def _notify_transcription_failed_on_main(self, exc: Exception) -> None:
+        """Run on main thread: notify user and call on_paste_complete."""
+        _notify("Dictate failed", f"Transcription error: {exc}")
+        if self._on_paste_complete:
+            self._on_paste_complete()
+
     # ------------------------------------------------------------------
     # Background worker
     # ------------------------------------------------------------------
@@ -306,7 +349,10 @@ class DictateController:
                 text = result.text.strip() if result.text else ""
             except Exception as exc:
                 logger.error("DictateController: transcription failed: %s", exc)
-                _notify("Dictate failed", f"Transcription error: {exc}")
+                if self._run_on_main:
+                    self._run_on_main(lambda _e=exc: self._notify_transcription_failed_on_main(_e))
+                else:
+                    _notify("Dictate failed", f"Transcription error: {exc}")
                 return
 
             if not text:
@@ -315,33 +361,37 @@ class DictateController:
 
             # TODO Phase 10: wire replacements before paste
 
-            try:
-                import pyperclip
-
-                pyperclip.copy(text)
-            except Exception as exc:
-                logger.error("DictateController: clipboard copy failed: %s", exc)
-                return
-
             target = self._target_bundle_id
-            if target:
-                try:
-                    _activate_bundle(target)
-                    _simulate_paste()
-                    if self._config.dictation_auto_enter:
-                        time.sleep(0.12)  # let target app apply paste before Enter
-                        _simulate_enter()
-                except Exception as exc:
-                    logger.warning("DictateController: keyboard paste failed: %s", exc)
-                    _notify("Dictated text copied to clipboard", text[:80])
+            if self._run_on_main:
+                # AppKit, rumps, and pynput must run on main thread on macOS.
+                self._run_on_main(lambda: self._do_paste_on_main(target, text))
             else:
-                _notify("Dictated text copied to clipboard", text[:80])
+                try:
+                    import pyperclip
+
+                    pyperclip.copy(text)
+                except Exception as exc:
+                    logger.error("DictateController: clipboard copy failed: %s", exc)
+                    return
+
+                if target:
+                    try:
+                        _activate_bundle(target)
+                        _simulate_paste()
+                        if self._config.dictation_auto_enter:
+                            time.sleep(0.12)  # let target app apply paste before Enter
+                            _simulate_enter()
+                    except Exception as exc:
+                        logger.warning("DictateController: keyboard paste failed: %s", exc)
+                        _notify("Dictated text copied to clipboard", text[:80])
+                else:
+                    _notify("Dictated text copied to clipboard", text[:80])
         finally:
             self._worker_running = False
             if self._dictate_temp_dir:
                 shutil.rmtree(self._dictate_temp_dir, ignore_errors=True)
                 self._dictate_temp_dir = None
-            if self._on_paste_complete:
+            if self._on_paste_complete and not self._run_on_main:
                 self._on_paste_complete()
 
     # ------------------------------------------------------------------

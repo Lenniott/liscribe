@@ -240,7 +240,7 @@ def _menubar_icon_image() -> object | None:
     """Return an NSImage: white waveform symbol for the menu bar, or None if unavailable."""
     try:
         symbol = AppKit.NSImage.imageWithSystemSymbolName_accessibilityDescription_(
-            "waveform", None
+            "waveform.and.mic", None
         )
         if symbol is None:
             return None
@@ -322,6 +322,7 @@ class LiscribeApp(rumps.App):
             config=config,
             can_dictate=has_dictate_permissions,
             on_paste_complete=lambda: AppHelper.callAfter(self._close_dictate_panel),
+            run_on_main=AppHelper.callAfter,
         )
         self._dictate_bridge = DictateBridge(
             controller=self._dictate_ctrl,

@@ -158,7 +158,12 @@ class ConfigService:
 
     @property
     def dictation_auto_enter(self) -> bool:
-        return bool(self._values.get("dictation_auto_enter", True))
+        v = self._values.get("dictation_auto_enter", True)
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str) and v.lower() in ("false", "0", "no"):
+            return False
+        return bool(v)
 
     @dictation_auto_enter.setter
     def dictation_auto_enter(self, value: bool) -> None:

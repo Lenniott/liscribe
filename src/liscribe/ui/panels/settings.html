@@ -63,17 +63,9 @@
     .hotkey-picker { font-family: var(--font); font-size: 13px; padding: 6px 10px; border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text); border: 1px solid var(--border); min-width: 140px; }
     .replacements-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 13px; }
     .replacements-table th, .replacements-table td { padding: 8px; text-align: left; border-bottom: 1px solid var(--border); }
-    .header-close { cursor: pointer; padding: 4px; color: var(--text-muted); }
-    .header-close:hover { color: var(--text); }
   </style>
 </head>
 <body>
-
-  <div class="panel-header" style="padding: 12px 16px;">
-    <span class="panel-title">Settings</span>
-    <span id="header-close" class="header-close" title="Close">✕</span>
-  </div>
-
   <div class="settings-layout">
     <nav class="settings-sidebar">
       <button type="button" class="settings-tab active" data-tab="general">General</button>
@@ -512,15 +504,6 @@
   });
   el('help-back').addEventListener('click', hideHelpDetail);
   el('help-github').href = 'https://github.com/your-org/liscribe';
-  el('header-close').addEventListener('click', function() {
-    try {
-      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.close_window === 'function') {
-        window.pywebview.api.close_window();
-      } else {
-        window.close();
-      }
-    } catch (_) { window.close(); }
-  });
   el('browse-save-folder').addEventListener('click', async function() {
     const path = await pywebview.api.pick_folder();
     if (path) { await saveConfigKey('save_folder', path); config.save_folder = path; el('save-folder-display').textContent = path; }
