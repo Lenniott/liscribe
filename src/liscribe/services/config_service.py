@@ -233,7 +233,7 @@ class ConfigService:
     @property
     def keep_wav(self) -> bool:
         """Whether to retain the WAV file after successful transcription."""
-        return bool(self._values.get("keep_wav", True))
+        return bool(self._values.get("keep_wav", False))
 
     @keep_wav.setter
     def keep_wav(self, value: bool) -> None:

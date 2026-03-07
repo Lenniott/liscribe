@@ -10,7 +10,7 @@ function on the ``window.pywebview.api`` namespace.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from liscribe.controllers.scribe_controller import ScribeController
@@ -18,6 +18,27 @@ if TYPE_CHECKING:
     from liscribe.services.model_service import ModelService
 
 logger = logging.getLogger(__name__)
+
+
+class ScribeAppActions(Protocol):
+    """App-level actions the Scribe panel can trigger. One object replaces four optional callbacks."""
+
+    def close_panel(self) -> None: ...
+    def request_close(self) -> None: ...
+    def transcription_finished(self) -> None: ...
+    def open_in_transcribe(self, wav_path: str, save_folder: str | None) -> None: ...
+
+
+def _invoke(
+    name: str,
+    app_actions: ScribeAppActions | None,
+    method: str,
+) -> None:
+    """Call app_actions.method() if wired; otherwise log. Reduces callback boilerplate."""
+    if app_actions is not None:
+        getattr(app_actions, method)()
+    else:
+        logger.info("%s requested (no app_actions wired)", name)
 
 
 class ScribeBridge:
@@ -32,20 +53,29 @@ class ScribeBridge:
         controller: ScribeController,
         model: ModelService,
         audio: AudioService,
-        on_open_transcribe: Callable[[str, str | None], None] | None = None,
+        app_actions: ScribeAppActions | None = None,
     ) -> None:
         self._controller = controller
         self._model = model
         self._audio = audio
-        self._on_open_transcribe = on_open_transcribe
+        self._app_actions = app_actions
 
     # ------------------------------------------------------------------
     # Device / model queries
     # ------------------------------------------------------------------
 
     def get_mics(self) -> list[dict]:
-        """Return available microphones, each annotated with fallback status."""
-        mics = self._audio.list_mics()
+        """Return available microphones, each annotated with fallback status.
+
+        On any exception (e.g. permission, sounddevice init), logs and returns []
+        so the UI shows "no mics" instead of breaking. Callers cannot distinguish
+        "no devices" from "error"; see logs for debugging.
+        """
+        try:
+            mics = self._audio.list_mics()
+        except Exception as e:
+            logger.warning("list_mics failed (returning empty list): %s", e, exc_info=True)
+            mics = []
         is_fallback = self._controller.is_using_fallback_mic
         return [
             {**mic, "is_fallback_active": is_fallback}
@@ -141,8 +171,9 @@ class ScribeBridge:
     # Real-time data (JS polls these)
     # ------------------------------------------------------------------
 
-    def get_waveform(self) -> list[float]:
-        return self._controller.get_waveform()
+    def get_waveform(self, bars: int = 30) -> list[float]:
+        """Return audio level bars for waveform display. Optional bars (default 30) matches frontend bar count."""
+        return self._controller.get_waveform(bars)
 
     def get_elapsed(self) -> float:
         return self._controller.get_elapsed_seconds()
@@ -178,6 +209,7 @@ class ScribeBridge:
             "is_using_fallback_mic": self._controller.is_using_fallback_mic,
             "save_path": self._controller.save_path,
             "selected_models": self._controller.selected_models,
+            "current_mic": self._controller.current_mic,
         }
 
     # ------------------------------------------------------------------
@@ -186,7 +218,19 @@ class ScribeBridge:
 
     def open_in_transcribe(self, wav_path: str, save_folder: str | None = None) -> None:
         """Signal the app to open the Transcribe panel with wav_path (and optional save_folder) pre-filled."""
-        if self._on_open_transcribe is not None:
-            self._on_open_transcribe(wav_path, save_folder)
+        if self._app_actions is not None:
+            self._app_actions.open_in_transcribe(wav_path, save_folder or None)
         else:
-            logger.info("open_in_transcribe requested for %s (no callback wired)", wav_path)
+            logger.info("open_in_transcribe requested for %s (no app_actions wired)", wav_path)
+
+    def close_panel(self) -> None:
+        """Close the Scribe panel (e.g. after Leave and discard)."""
+        _invoke("close_panel", self._app_actions, "close_panel")
+
+    def request_close(self) -> None:
+        """Request to close the panel (triggers the same native confirm dialog as the red X)."""
+        _invoke("request_close", self._app_actions, "request_close")
+
+    def transcription_finished(self) -> None:
+        """Called when all transcription is done; disables the close warning so the red X just closes."""
+        _invoke("transcription_finished", self._app_actions, "transcription_finished")

@@ -70,6 +70,19 @@ Each panel is a self-contained component:
 - ScribeBridge — JS↔Python calls (recording controls, waveform, notes)
 - ScribeController — orchestrates AudioService + ModelService
 
+**App–panel contract (Scribe)**  
+The app owns Scribe window lifecycle and confirm-close behaviour. It wires four callbacks through ScribeBridge so the panel can trigger app actions:
+
+- **close_panel** — destroy the Scribe window (e.g. after “Leave and discard”).
+- **request_close** — trigger the native close flow (same confirm dialog as the red X).
+- **transcription_finished** — app sets `confirm_close = False` so the red X closes without prompting.
+- **open_in_transcribe** — open Transcribe panel with prefill (from Scribe).
+
+The app sets **confirm_close** on the pywebview window (True while recording/transcribing so the red X shows the confirm dialog; False after transcription is done). The Cocoa backend reads this at close time. This is part of the window contract: see “Window options” below.
+
+**Window options (pywebview)**  
+For Scribe, the app passes `confirm_close=True` when creating the window and later mutates `window.confirm_close` (True/False). The pywebview Cocoa layer reads this attribute when the user hits the red X to decide whether to show the “Recording in progress…” dialog. If pywebview changes how confirm works, this contract may need updating.
+
 **TranscribePanel**
 - HTML/CSS view
 - TranscribeBridge

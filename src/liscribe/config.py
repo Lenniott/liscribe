@@ -101,6 +101,10 @@ DEFAULTS: dict[str, dict[str, Any]] = {
         "value": None,
         "description": "Absolute path to the rec binary. Auto-detected on first run. Used for launchd integration and background spawning.",
     },
+    "keep_wav": {
+        "value": False,
+        "description": "When false (default), delete the WAV file after successful transcription. Set true to keep the WAV.",
+    },
 }
 
 

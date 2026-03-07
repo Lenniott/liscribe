@@ -124,6 +124,10 @@ class ScribeController:
     def save_path(self) -> str:
         return self._save_path or self._config.save_folder
 
+    @property
+    def current_mic(self) -> str | None:
+        return self._current_mic
+
     # ------------------------------------------------------------------
     # Recording lifecycle
     # ------------------------------------------------------------------
@@ -240,6 +244,10 @@ class ScribeController:
         Safe to call in any state, including IDLE.
         When in TRANSCRIBING, sets _cancelled so the background thread
         does not overwrite state to DONE.
+
+        Resets all UI-relevant session state so the next session starts clean:
+        notes, speaker_enabled, and state. When adding new session-scoped state,
+        reset it here so cancel() keeps the contract.
         """
         if self._state == ControllerState.IDLE:
             return
@@ -249,6 +257,7 @@ class ScribeController:
         with self._lock:
             self._cancelled = True
         self._notes = NoteCollection()
+        self._speaker_enabled = False
         self._state = ControllerState.IDLE
 
     # ------------------------------------------------------------------
@@ -339,9 +348,9 @@ class ScribeController:
     # Real-time data
     # ------------------------------------------------------------------
 
-    def get_waveform(self) -> list[float]:
+    def get_waveform(self, bars: int = 30) -> list[float]:
         """Return current audio level bars (0.0–1.0) for waveform display."""
-        return self._audio.get_levels()
+        return self._audio.get_levels(bars=bars)
 
     def get_elapsed_seconds(self) -> float:
         """Return seconds elapsed since recording started, or 0.0."""

@@ -54,10 +54,11 @@ import webview
 from webview import http as webview_http
 
 import AppKit
+from PyObjCTools import AppHelper
 
-from liscribe.bridge.scribe_bridge import ScribeBridge
+from liscribe.bridge.scribe_bridge import ScribeAppActions, ScribeBridge
 from liscribe.bridge.transcribe_bridge import TranscribeBridge
-from liscribe.controllers.scribe_controller import ScribeController
+from liscribe.controllers.scribe_controller import ControllerState, ScribeController
 from liscribe.controllers.transcribe_controller import TranscribeController
 from liscribe.services.audio_service import AudioService
 from liscribe.services.config_service import ConfigService
@@ -67,6 +68,16 @@ from liscribe.services.model_service import ModelService
 logger = logging.getLogger(__name__)
 
 PANELS_DIR = Path(__file__).parent / "ui" / "panels"
+
+
+def _set_scribe_confirm_close(window: webview.Window, value: bool) -> None:
+    """Set confirm_close on the Scribe window so the native close flow shows or skips the dialog.
+
+    pywebview's Cocoa backend reads this attribute at close time. See docs/architecture.md
+    (Window options). Mutating the window object is required until pywebview exposes a formal API.
+    """
+    setattr(window, "confirm_close", value)
+
 
 if sys.platform != "darwin":
     raise RuntimeError("Liscribe requires macOS.")
@@ -101,6 +112,25 @@ def _window_will_close_no_stop(self, notification):
 
 
 _cocoa_guilib.BrowserView.WindowDelegate.windowWillClose_ = _window_will_close_no_stop
+
+
+class _ScribeAppActionsImpl:
+    """Implements ScribeAppActions by delegating to the app's Scribe lifecycle methods."""
+
+    def __init__(self, app: "LiscribleApp") -> None:
+        self._app = app
+
+    def close_panel(self) -> None:
+        self._app._close_scribe_panel()
+
+    def request_close(self) -> None:
+        self._app._request_scribe_close()
+
+    def transcription_finished(self) -> None:
+        self._app._scribe_transcription_finished()
+
+    def open_in_transcribe(self, wav_path: str, save_folder: str | None) -> None:
+        self._app._open_transcribe_with_prefill(wav_path, output_folder=save_folder)
 
 
 class LiscribleApp(rumps.App):
@@ -138,7 +168,7 @@ class LiscribleApp(rumps.App):
             controller=self._scribe_ctrl,
             model=model,
             audio=audio,
-            on_open_transcribe=self._open_transcribe_with_prefill,
+            app_actions=_ScribeAppActionsImpl(self),
         )
 
         # name → open webview.Window (None-entry means window was closed)
@@ -199,6 +229,9 @@ class LiscribleApp(rumps.App):
                 logger.warning("Could not show existing panel %r; recreating", name, exc_info=True)
                 self._panels.pop(name, None)
 
+        create_kwargs: dict[str, Any] = {} if js_api is None else {"js_api": js_api}
+        if name == "scribe":
+            create_kwargs["confirm_close"] = True  # See _set_scribe_confirm_close and architecture.md
         window = webview.create_window(
             title,
             self._panel_url(name),
@@ -206,10 +239,13 @@ class LiscribleApp(rumps.App):
             height=height,
             resizable=resizable,
             min_size=(400, 300),
-            **({} if js_api is None else {"js_api": js_api}),
+            **create_kwargs,
         )
 
         def _on_closed() -> None:
+            if name == "scribe":
+                if self._scribe_ctrl.state == ControllerState.RECORDING:
+                    self._scribe_ctrl.cancel()
             self._panels.pop(name, None)
 
         window.events.closed += _on_closed
@@ -221,6 +257,13 @@ class LiscribleApp(rumps.App):
         if not hasattr(window, "localization"):
             from webview.localization import original_localization
             window.localization = original_localization.copy()
+        if name == "scribe":
+            window.localization = {
+                **window.localization,
+                "global.quitConfirmation": "Recording in progress\n\nGo back to recording, or leave and discard?",
+                "global.quit": "Leave and discard",
+                "global.cancel": "Back",
+            }
         if not hasattr(window, "js_api_endpoint"):
             window.js_api_endpoint = None
         if window.gui is None:
@@ -245,15 +288,28 @@ class LiscribleApp(rumps.App):
         """Open the Scribe panel and start recording immediately."""
         existing = self._panels.get("scribe")
         if existing is not None:
+            # Reuse existing window: reset controller, start new session, reload page, then show.
+            if self._scribe_ctrl.state != ControllerState.IDLE:
+                self._scribe_ctrl.cancel()
             try:
-                existing.show()
-                return
+                self._scribe_ctrl.start()
             except Exception:
-                logger.warning("Could not show existing Scribe panel; recreating", exc_info=True)
+                logger.error("Failed to start Scribe recording", exc_info=True)
+                return
+            self._ensure_panel_server()
+            _set_scribe_confirm_close(existing, True)
+            try:
+                existing.load_url(self._panel_url("scribe"))
+                existing.show()
+            except Exception:
+                logger.warning("Could not reload/show existing Scribe panel; recreating", exc_info=True)
                 self._panels.pop("scribe", None)
+                self._scribe_ctrl.cancel()
+                # Fall through to create new window once (no recursive retry).
+            else:
+                return
 
-        # Reset the controller so a new session starts fresh.
-        from liscribe.controllers.scribe_controller import ControllerState
+        # New window or single retry after reload failure.
         if self._scribe_ctrl.state != ControllerState.IDLE:
             logger.warning(
                 "Scribe panel opened while controller is in state %r; cancelling previous session.",
@@ -261,8 +317,6 @@ class LiscribleApp(rumps.App):
             )
             self._scribe_ctrl.cancel()
 
-        # Start recording before the panel is visible so audio capture
-        # begins at the moment the user triggers the panel.
         try:
             self._scribe_ctrl.start()
         except Exception:
@@ -301,6 +355,40 @@ class LiscribleApp(rumps.App):
         self._panels.pop("transcribe", None)
         self.open_transcribe()
 
+    def _close_scribe_panel(self) -> None:
+        """Close the Scribe panel (called from bridge when user chooses Leave and discard)."""
+        w = self._panels.get("scribe")
+        if w is not None:
+            try:
+                w.destroy()
+            except Exception as exc:
+                logger.warning("Could not destroy Scribe panel: %s", exc)
+            self._panels.pop("scribe", None)
+
+    def _request_scribe_close(self) -> None:
+        """Trigger the native close flow (same confirm dialog as the red X)."""
+        w = self._panels.get("scribe")
+        if w is None:
+            return
+        native = getattr(w, "native", None)
+        if native is None:
+            logger.warning("Scribe window has no native handle for request_close")
+            return
+
+        def do_perform_close() -> None:
+            try:
+                native.performClose_(None)
+            except Exception as exc:
+                logger.warning("Could not perform close: %s", exc)
+
+        AppHelper.callAfter(do_perform_close)
+
+    def _scribe_transcription_finished(self) -> None:
+        """Disable the close warning so the red X just closes (no discard)."""
+        w = self._panels.get("scribe")
+        if w is not None:
+            _set_scribe_confirm_close(w, False)
+
     def open_settings(self, _: Any = None) -> None:
         self._open_panel("settings", "Settings", width=560, height=580)
 
@@ -316,7 +404,7 @@ def main() -> None:
     app = LiscribleApp(config=config, audio=audio, model=model, hotkey=hotkey)
 
     hotkey.start(
-        on_scribe=app.open_scribe,
+        on_scribe=lambda: AppHelper.callAfter(app.open_scribe),
         on_dictate_toggle=lambda: None,
         on_dictate_hold_start=lambda: None,
         on_dictate_hold_end=lambda: None,

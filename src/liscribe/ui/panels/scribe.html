@@ -44,16 +44,6 @@
     .open-transcript-btn { margin-top: 4px; font-size: 12px; }
     .view { display: none; flex-direction: column; height: 100%; }
     .view.active { display: flex; }
-    #cancel-overlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.6); z-index: 100;
-      align-items: center; justify-content: center; padding: 24px;
-    }
-    #cancel-overlay.visible { display: flex; }
-    .overlay-card {
-      background: var(--bg-elevated); border-radius: var(--radius-lg);
-      padding: 24px; width: 100%; max-width: 340px;
-    }
   </style>
 </head>
 <body>
@@ -69,7 +59,16 @@
     </div>
 
     <div class="panel-body">
-      <div class="waveform" id="waveform" style="margin-bottom:12px"></div>
+      <div id="waveform-container" style="margin-bottom:12px">
+        <div id="waveform-mic-wrap">
+          <div class="section-label" style="margin-bottom:4px;font-size:10px" id="waveform-mic-label">Mic</div>
+          <div class="waveform" id="waveform"></div>
+        </div>
+        <div id="waveform-speaker-wrap" style="display:none;margin-top:6px">
+          <div class="section-label" style="margin-bottom:4px;font-size:10px">Speaker</div>
+          <div class="waveform" id="waveform-speaker"></div>
+        </div>
+      </div>
 
       <textarea id="notes-input" rows="3"
         placeholder="Add a note… (Enter to save)"
@@ -123,6 +122,9 @@
       </div>
       <div id="model-progress-list"></div>
     </div>
+    <div id="transcribing-footer" class="panel-footer" style="display:none">
+      <button type="button" class="btn btn-primary btn-full" id="transcribing-close-btn">Close</button>
+    </div>
   </div>
 
   <!-- NO-MODEL VIEW -->
@@ -145,23 +147,14 @@
     </div>
   </div>
 
-  <!-- CANCEL OVERLAY -->
-  <div id="cancel-overlay">
-    <div class="overlay-card">
-      <h2 style="margin-bottom:8px">Recording in progress</h2>
-      <p style="color:var(--text-muted);margin-bottom:20px">Stop and save, or discard?</p>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-ghost" style="flex:1" id="discard-btn">Discard</button>
-        <button class="btn btn-danger" style="flex:1" id="confirm-stop-btn">Stop &amp; Save</button>
-      </div>
-    </div>
-  </div>
-
 <script>
   const POLL_WAVEFORM_MS   = 80;
   const POLL_TIMER_MS      = 500;
   const POLL_PROGRESS_MS   = 600;
   const WAVEFORM_BAR_COUNT = 32;
+  // pywebview API readiness: short delay before first init; retry backoff if mics/models empty
+  const INIT_API_DELAY_MS  = 80;
+  const RETRY_DELAY_MS     = 250;
 
   let timerInterval    = null;
   let waveformInterval = null;
@@ -197,64 +190,126 @@
 
   function buildWaveformBars() {
     const wf = el('waveform');
+    const wfSpk = el('waveform-speaker');
     clearChildren(wf);
+    clearChildren(wfSpk);
     for (let i = 0; i < WAVEFORM_BAR_COUNT; i++) {
       const bar = document.createElement('div');
       bar.className = 'waveform-bar';
       bar.style.height = '4px';
       wf.appendChild(bar);
     }
+    for (let i = 0; i < WAVEFORM_BAR_COUNT; i++) {
+      const bar = document.createElement('div');
+      bar.className = 'waveform-bar';
+      bar.style.height = '4px';
+      wfSpk.appendChild(bar);
+    }
   }
 
   async function updateWaveform() {
     try {
-      const levels = await pywebview.api.get_waveform();
-      const bars = document.querySelectorAll('.waveform-bar');
-      levels.forEach((lvl, i) => {
-        if (bars[i]) {
-          bars[i].style.height = Math.max(3, Math.round(lvl * 44)) + 'px';
+      const levels = await pywebview.api.get_waveform(WAVEFORM_BAR_COUNT);
+      const micBars = el('waveform').querySelectorAll('.waveform-bar');
+      const speakerWrap = el('waveform-speaker-wrap');
+      const speakerBars = el('waveform-speaker').querySelectorAll('.waveform-bar');
+      if (levels.length >= WAVEFORM_BAR_COUNT * 2) {
+        speakerWrap.style.display = 'block';
+        for (let i = 0; i < WAVEFORM_BAR_COUNT; i++) {
+          if (micBars[i]) micBars[i].style.height = Math.max(3, Math.round(levels[i] * 44)) + 'px';
+          if (speakerBars[i]) speakerBars[i].style.height = Math.max(3, Math.round(levels[WAVEFORM_BAR_COUNT + i] * 44)) + 'px';
         }
-      });
-    } catch (_) {}
+      } else {
+        speakerWrap.style.display = 'none';
+        levels.forEach((lvl, i) => {
+          if (micBars[i]) micBars[i].style.height = Math.max(3, Math.round(lvl * 44)) + 'px';
+        });
+      }
+    } catch (_) { /* pywebview.api not ready or bridge error; no-op for polling */ }
   }
 
   async function updateTimer() {
     try {
       const elapsed = await pywebview.api.get_elapsed();
       el('timer').textContent = formatTime(elapsed);
-    } catch (_) {}
+    } catch (_) { /* pywebview.api not ready or bridge error; no-op for polling */ }
   }
 
   // ── Mic select ───────────────────────────────────────────────────────
 
-  function populateMicSelect(mics, isFallback) {
+  function updateWaveformMicLabel() {
+    const sel = el('mic-select');
+    const labelEl = el('waveform-mic-label');
+    if (!labelEl) return;
+    const chosen = sel.options[sel.selectedIndex];
+    const text = chosen ? chosen.textContent : 'Mic';
+    labelEl.textContent = (chosen && chosen.value === MIC_PLACEHOLDER_VALUE) ? 'Mic' : text;
+  }
+
+  const MIC_PLACEHOLDER_VALUE = '__no_mics__';
+
+  function populateMicSelect(mics, isFallback, currentMic) {
     const sel = el('mic-select');
     clearChildren(sel);
-    mics.forEach(mic => {
+    const list = Array.isArray(mics) ? mics : [];
+    if (list.length === 0) {
       const opt = document.createElement('option');
-      opt.value = mic.name;
-      opt.textContent = mic.name + (mic.is_default ? ' (default)' : '');
+      opt.value = MIC_PLACEHOLDER_VALUE;
+      opt.textContent = 'No microphones found';
       sel.appendChild(opt);
-    });
+    } else {
+      list.forEach(mic => {
+        const opt = document.createElement('option');
+        opt.value = mic.name;
+        opt.textContent = mic.name + (mic.is_default ? ' (default)' : '');
+        sel.appendChild(opt);
+      });
+      let chosenValue = currentMic;
+      if (!chosenValue) {
+        const defaultMic = list.find(m => m.is_default);
+        if (defaultMic) chosenValue = defaultMic.name;
+      }
+      if (chosenValue) {
+        sel.value = chosenValue;
+        const idx = list.findIndex(m => m.name === chosenValue);
+        if (idx >= 0) sel.selectedIndex = idx;
+      }
+    }
     el('fallback-warning').classList.toggle('visible', !!isFallback);
+    updateWaveformMicLabel();
+  }
+
+  async function refreshMicList() {
+    try {
+      const mics = await pywebview.api.get_mics();
+      const state = await pywebview.api.get_state();
+      populateMicSelect(mics, state.is_using_fallback_mic, state.current_mic || null);
+    } catch (err) {
+      console.error('refreshMicList:', err);
+    }
   }
 
   // ── Model checkboxes ─────────────────────────────────────────────────
 
   function populateModelCheckboxes(models) {
+    if (!Array.isArray(models)) return;
     const container = el('model-checkboxes');
+    if (!container) return;
     clearChildren(container);
     models.forEach(m => {
-      if (!m.is_downloaded) return;
       const label = document.createElement('label');
-      label.style.cssText = 'display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px';
+      label.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:12px;' +
+        (m.is_downloaded ? 'cursor:pointer' : 'cursor:not-allowed;opacity:0.7');
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = m.is_selected;
+      cb.disabled = !m.is_downloaded;
       const name = m.name;
-      cb.addEventListener('change', () => pywebview.api.toggle_model(name, cb.checked));
+      if (m.is_downloaded) {
+        cb.addEventListener('change', () => pywebview.api.toggle_model(name, cb.checked));
+      }
       label.appendChild(cb);
-      label.appendChild(document.createTextNode(m.name));
+      label.appendChild(document.createTextNode(m.name + (m.is_downloaded ? '' : ' (not downloaded)')));
       container.appendChild(label);
     });
   }
@@ -339,6 +394,9 @@
       if (allDone) {
         clearInterval(progressInterval);
         progressInterval = null;
+        const footer = el('transcribing-footer');
+        if (footer) footer.style.display = '';
+        try { pywebview.api.transcription_finished(); } catch (_) { /* lifecycle: no-op if bridge not ready */ }
       }
     } catch (err) {
       console.error('pollProgress:', err);
@@ -381,7 +439,15 @@
   });
 
   el('mic-select').addEventListener('change', function () {
+    if (this.value === MIC_PLACEHOLDER_VALUE) return;
     pywebview.api.set_mic(this.value);
+    updateWaveformMicLabel();
+  });
+
+  el('mic-select').addEventListener('focus', function () {
+    if (this.options.length === 0 || (this.options.length === 1 && this.options[0].value === MIC_PLACEHOLDER_VALUE)) {
+      refreshMicList();
+    }
   });
 
   el('change-path-btn').addEventListener('click', async function () {
@@ -394,29 +460,20 @@
   });
 
   el('cancel-btn').addEventListener('click', function () {
-    el('cancel-overlay').classList.add('visible');
+    try { pywebview.api.request_close(); } catch (_) { /* lifecycle: no-op if bridge not ready */ }
   });
 
   el('stop-btn').addEventListener('click', doStopAndSave);
-
-  el('discard-btn').addEventListener('click', async function () {
-    el('cancel-overlay').classList.remove('visible');
-    isRecording = false;
-    stopPolling();
-    try { await pywebview.api.cancel(); } catch (_) {}
-    window.close();
-  });
-
-  el('confirm-stop-btn').addEventListener('click', function () {
-    el('cancel-overlay').classList.remove('visible');
-    doStopAndSave();
-  });
 
   el('open-transcribe-btn').addEventListener('click', async function () {
     if (pendingWavPath) {
       await pywebview.api.open_in_transcribe(pendingWavPath, pendingSaveFolder || undefined);
     }
-    window.close();
+    try { pywebview.api.close_panel(); } catch (_) { /* lifecycle: no-op if bridge not ready */ }
+  });
+
+  el('transcribing-close-btn').addEventListener('click', function () {
+    try { pywebview.api.close_panel(); } catch (_) { /* lifecycle: no-op if bridge not ready */ }
   });
 
   // ── Stop & Save ──────────────────────────────────────────────────────
@@ -461,32 +518,50 @@
 
   // ── Init ─────────────────────────────────────────────────────────────
 
-  window.addEventListener('load', async () => {
-    buildWaveformBars();
-
+  async function initRecordingView() {
     try {
       const state = await pywebview.api.get_state();
       el('save-path-display').textContent = state.save_path;
 
       const mics = await pywebview.api.get_mics();
-      populateMicSelect(mics, state.is_using_fallback_mic);
+      populateMicSelect(mics, state.is_using_fallback_mic, state.current_mic || null);
 
       const models = await pywebview.api.get_models();
       populateModelCheckboxes(models);
+
+      const micCount = Array.isArray(mics) ? mics.length : 0;
+      const modelCount = Array.isArray(models) ? models.length : 0;
+      return { micCount, modelCount };
     } catch (err) {
       console.error('init error:', err);
+      return { micCount: 0, modelCount: 0 };
     }
+  }
+
+  window.addEventListener('load', async () => {
+    buildWaveformBars();
 
     waveformInterval = setInterval(updateWaveform, POLL_WAVEFORM_MS);
     timerInterval    = setInterval(updateTimer,    POLL_TIMER_MS);
+
+    // Wait for pywebview API to be injectable before first init (see INIT_API_DELAY_MS)
+    await new Promise(r => setTimeout(r, INIT_API_DELAY_MS));
+
+    const first = await initRecordingView();
+
+    // First load: API can be late; retry once if mics or models were empty (see RETRY_DELAY_MS)
+    if (first.micCount === 0 || first.modelCount === 0) {
+      await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+      await initRecordingView();
+    }
   });
 
-  // Intercept close gesture during recording
+  // Intercept close gesture during recording — use same native dialog as red X
   window.addEventListener('beforeunload', function (e) {
     if (isRecording) {
       e.preventDefault();
       e.returnValue = '';
-      el('cancel-overlay').classList.add('visible');
+      try { pywebview.api.request_close(); } catch (_) { /* lifecycle: no-op if bridge not ready */ }
       return '';
     }
   });

@@ -169,10 +169,9 @@ class AudioService:
     def get_levels(self, bars: int = 30) -> list[float]:
         """Return instantaneous RMS levels (0.0–1.0) for waveform display.
 
-        When speaker capture is on, combines mic and speaker levels per bar
-        (max of the two) so the waveform reflects both streams.
-
-        Returns an empty list when not recording.
+        When speaker capture is on, returns mic levels then speaker levels
+        (length 2*bars) so the UI can show two rows. When speaker is off or
+        has no data yet, returns mic levels only (length bars).
         """
         if self._session is None:
             return []
@@ -196,7 +195,10 @@ class AudioService:
             return out
 
         mic_levels = _levels_from_chunk(mic_chunk)
-        if speaker_chunk is not None:
-            speaker_levels = _levels_from_chunk(speaker_chunk)
-            return [max(m, s) for m, s in zip(mic_levels, speaker_levels)]
+        if self._session.speaker:
+            if speaker_chunk is not None:
+                speaker_levels = _levels_from_chunk(speaker_chunk)
+            else:
+                speaker_levels = [0.0] * bars
+            return mic_levels + speaker_levels
         return mic_levels
