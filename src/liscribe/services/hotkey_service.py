@@ -151,6 +151,46 @@ class HotkeyService:
         )
         self._dictate_listener_thread.start()
 
+    def restart_scribe_listener(self) -> None:
+        """Stop the Scribe global hotkey listener and start a new one with current config.
+        Intended to be called from a background thread (not main) to avoid macOS crashes.
+        """
+        if not _PYNPUT_AVAILABLE:
+            return
+        old_thread = self._listener_thread
+        if self._listener is not None:
+            try:
+                self._listener.stop()  # type: ignore[attr-defined]
+            except Exception:
+                logger.warning("Error stopping Scribe hotkey listener", exc_info=True)
+            self._listener = None
+        if old_thread is not None and old_thread.is_alive():
+            old_thread.join(timeout=1.0)
+        self._listener_thread = threading.Thread(
+            target=self._run_listener, daemon=True, name="hotkey-listener"
+        )
+        self._listener_thread.start()
+
+    def restart_dictate_listener(self) -> None:
+        """Stop the Dictate key listener and start a new one with current config.
+        Intended to be called from a background thread (not main) to avoid macOS crashes.
+        """
+        if not _PYNPUT_AVAILABLE:
+            return
+        old_thread = self._dictate_listener_thread
+        if self._dictate_listener is not None:
+            try:
+                self._dictate_listener.stop()  # type: ignore[attr-defined]
+            except Exception:
+                logger.warning("Error stopping Dictate key listener", exc_info=True)
+            self._dictate_listener = None
+        if old_thread is not None and old_thread.is_alive():
+            old_thread.join(timeout=1.0)
+        self._dictate_listener_thread = threading.Thread(
+            target=self._run_dictate_listener, daemon=True, name="dictate-key-listener"
+        )
+        self._dictate_listener_thread.start()
+
     def stop(self) -> None:
         for listener in (self._listener, self._dictate_listener):
             if listener is not None:

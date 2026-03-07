@@ -50,11 +50,17 @@ class SettingsBridge:
         model: ModelService,
         audio: AudioService,
         on_close: Callable[[], None] | None = None,
+        on_restart: Callable[[], None] | None = None,
+        on_launch_hotkey_changed: Callable[[], None] | None = None,  # Reserved for future in-process listener restart; not called (hotkeys apply after full app restart).
+        on_dictation_hotkey_changed: Callable[[], None] | None = None,  # Same as above.
     ) -> None:
         self._config = config
         self._model = model
         self._audio = audio
         self._on_close = on_close
+        self._on_restart = on_restart
+        self._on_launch_hotkey_changed = on_launch_hotkey_changed
+        self._on_dictation_hotkey_changed = on_dictation_hotkey_changed
         self._window: Any = None
         self._download_state: dict[str, Any] = {}
         self._download_lock = threading.Lock()
@@ -63,6 +69,11 @@ class SettingsBridge:
         """Close the Settings panel. Called when user clicks the header close button."""
         if self._on_close is not None:
             self._on_close()
+
+    def restart_app(self) -> None:
+        """Close the app and relaunch it after a short delay. Used to apply new hotkeys."""
+        if self._on_restart is not None:
+            self._on_restart()
 
     def set_window(self, window: Any) -> None:
         """Set the pywebview window for pick_app and navigate_help. Called by app after create_window."""
@@ -104,6 +115,7 @@ class SettingsBridge:
             self._config.scribe_models = value if isinstance(value, list) else list(value)
             return
         self._config.set(key, value)
+        # Hotkey changes are saved only; new shortcuts apply after app restart (in-process listener restart crashes on macOS).
 
     # ------------------------------------------------------------------
     # Models

@@ -151,13 +151,15 @@ def has_dictate_permissions() -> tuple[bool, list[str]]:
     The list is empty when all permissions are granted.
 
     Checked live every call — never cached.
+    Uses _check_input_monitoring_subprocess() so the main thread never creates
+    a pynput listener (creating one when a Liscribe panel is key can crash the app).
     """
     missing: list[str] = []
 
     if not check_accessibility():
         missing.append("Accessibility")
 
-    if not check_input_monitoring():
+    if not _check_input_monitoring_subprocess():
         missing.append("Input Monitoring")
 
     return (len(missing) == 0, missing)

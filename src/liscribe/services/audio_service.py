@@ -58,15 +58,22 @@ class AudioService:
     def is_recording(self) -> bool:
         return self._session is not None and self._thread is not None and self._thread.is_alive()
 
-    def start(self, mic: str | None = None, speaker: bool = False) -> None:
+    def start(
+        self,
+        mic: str | None = None,
+        speaker: bool = False,
+        save_folder_override: str | None = None,
+    ) -> None:
         """Start a new recording session in a background thread.
 
         Raises RuntimeError if a recording is already in progress.
+        When save_folder_override is set, recordings are saved there instead of
+        config.save_folder (e.g. for ephemeral Dictate sessions).
         """
         if self.is_recording:
             raise RuntimeError("A recording session is already active.")
 
-        folder = self._config.save_folder
+        folder = save_folder_override if save_folder_override is not None else self._config.save_folder
         self._session = RecordingSession(folder=folder, speaker=speaker, mic=mic)
         self._wav_path = None
         self._thread = threading.Thread(target=self._run, daemon=True, name="audio-recorder")

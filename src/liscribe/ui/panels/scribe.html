@@ -12,13 +12,13 @@
       text-transform: uppercase;
       letter-spacing: 0.5px;
       color: var(--text-muted);
-      margin-bottom: 6px;
     }
     .control-row {
       display: flex;
+      flex-direction: column;
       align-items: center;
       gap: 8px;
-      margin-bottom: 10px;
+      margin-bottom: 16px;
     }
     .control-row .section-label { min-width: 108px; margin-bottom: 0; }
     .control-row select { flex: 1; }
@@ -151,7 +151,7 @@
   const POLL_WAVEFORM_MS   = 80;
   const POLL_TIMER_MS      = 500;
   const POLL_PROGRESS_MS   = 600;
-  const WAVEFORM_BAR_COUNT = 32;
+  const WAVEFORM_BAR_COUNT = 100;
   // pywebview API readiness: short delay before first init; retry backoff if mics/models empty
   const INIT_API_DELAY_MS  = 80;
   const RETRY_DELAY_MS     = 250;
@@ -309,7 +309,7 @@
         cb.addEventListener('change', () => pywebview.api.toggle_model(name, cb.checked));
       }
       label.appendChild(cb);
-      label.appendChild(document.createTextNode(m.name + (m.is_downloaded ? '' : ' (not downloaded)')));
+      label.appendChild(document.createTextNode(m.name));
       container.appendChild(label);
     });
   }

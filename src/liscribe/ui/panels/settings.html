@@ -58,8 +58,9 @@
     .model-table th, .model-table td { padding: 8px 12px; text-align: left; font-size: 13px; }
     .model-table th { color: var(--text-muted); font-weight: 600; }
     .model-table tr { border-bottom: 1px solid var(--border); }
-    .hotkey-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; }
+    .hotkey-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; flex-wrap: wrap; gap: 8px; }
     .hotkey-display { font-family: ui-monospace, monospace; font-size: 13px; background: var(--bg-input); padding: 6px 10px; border-radius: var(--radius-sm); }
+    .hotkey-picker { font-family: var(--font); font-size: 13px; padding: 6px 10px; border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text); border: 1px solid var(--border); min-width: 140px; }
     .replacements-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 13px; }
     .replacements-table th, .replacements-table td { padding: 8px; text-align: left; border-bottom: 1px solid var(--border); }
     .header-close { cursor: pointer; padding: 4px; color: var(--text-muted); }
@@ -127,11 +128,11 @@
       <div id="pane-models" class="settings-tab-pane">
         <div class="section-label">Whisper Models</div>
         <table class="model-table">
-          <thead><tr><th>Model</th><th>Size</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Model</th><th>Size</th><th></th><th></th></tr></thead>
           <tbody id="models-tbody"></tbody>
         </table>
         <div class="section-label">Scribe default models</div>
-        <div id="scribe-defaults" class="form-row" style="flex-wrap:wrap;gap:12px;"></div>
+        <div id="scribe-defaults" class="form-row" style="display:flex;flex-wrap:wrap;gap:12px;"></div>
         <div class="section-label mt-16">Dictate model</div>
         <div class="form-row">
           <select id="dictate-model"></select>
@@ -144,16 +145,37 @@
         <div class="hotkey-row">
           <span>Open Scribe</span>
           <span id="launch-hotkey-display" class="hotkey-display">⌃ ⌥ L</span>
-          <button type="button" class="btn btn-secondary btn-ghost" id="change-launch-hotkey">Change</button>
+          <span id="launch-hotkey-actions">
+            <button type="button" class="btn btn-secondary btn-ghost" id="change-launch-hotkey">Change</button>
+          </span>
+          <select id="launch-hotkey-picker" class="hotkey-picker" style="display:none;">
+            <option value="<ctrl>+<alt>+l">⌃ ⌥ L</option>
+            <option value="<cmd>+<shift>+r">⌘ ⇧ R</option>
+            <option value="<ctrl>+<shift>+l">⌃ ⇧ L</option>
+            <option value="__none__">Disabled</option>
+          </select>
         </div>
         <div class="hotkey-row">
           <span>Dictate trigger key</span>
           <span id="dictation-hotkey-display" class="hotkey-display">Right Control</span>
-          <button type="button" class="btn btn-secondary btn-ghost" id="change-dictation-hotkey">Change</button>
+          <span id="dictation-hotkey-actions">
+            <button type="button" class="btn btn-secondary btn-ghost" id="change-dictation-hotkey">Change</button>
+          </span>
+          <select id="dictation-hotkey-picker" class="hotkey-picker" style="display:none;">
+            <option value="left_ctrl">Left Control</option>
+            <option value="right_ctrl">Right Control</option>
+            <option value="right_option">Right Option</option>
+            <option value="right_shift">Right Shift</option>
+            <option value="caps_lock">Caps Lock</option>
+          </select>
         </div>
         <div class="section-label mt-20">Dictate modes (always both active)</div>
         <p style="font-size:13px;color:var(--text-muted);">Double-tap → toggle recording</p>
         <p style="font-size:13px;color:var(--text-muted);">Hold → record while held</p>
+        <div id="hotkey-save-quit-section" style="display:none;margin-top:16px;">
+          <p class="text-muted" style="font-size:12px;margin-bottom:8px;">For shortcut changes to take effect, quit and reopen the app.</p>
+          <button type="button" class="btn btn-primary" id="save-and-quit">Save and quit</button>
+        </div>
       </div>
 
       <!-- Replacements: stub until Phase 10; full CRUD then. -->
@@ -316,7 +338,7 @@
         const tr = document.createElement('tr');
         addCell(tr, m.name);
         addCell(tr, m.size_label || '');
-        addCell(tr, m.is_downloaded ? '✓ Downloaded' : 'Not downloaded');
+        addCell(tr, m.is_downloaded ? '✓' : '✗');
         const td = document.createElement('td');
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -519,6 +541,71 @@
     const result = await pywebview.api.pick_app();
     if (result && result.name) { await saveConfigKey('open_transcript_app', result.name); config.open_transcript_app = result.name; el('open-transcript-app-display').textContent = result.name; }
   });
+  /* Hotkey change workflow: show picker on Change, save and refresh on pick */
+  var originalLaunchHotkey = null;
+  var originalDictationHotkey = null;
+  function getHotkeyBtn(actionsId) {
+    var el = document.getElementById(actionsId);
+    return el ? el.querySelector('.btn') : null;
+  }
+  function updateSaveQuitVisibility() {
+    var launchChanged = (config.launch_hotkey != null ? config.launch_hotkey : '') !== (originalLaunchHotkey != null ? originalLaunchHotkey : '');
+    var dictationChanged = (config.dictation_hotkey || 'left_ctrl') !== (originalDictationHotkey || 'left_ctrl');
+    var section = document.getElementById('hotkey-save-quit-section');
+    if (section) section.style.display = (launchChanged || dictationChanged) ? 'block' : 'none';
+  }
+  function bindHotkeyPicker(opts) {
+    var changeBtnId = opts.changeBtnId;
+    var pickerId = opts.pickerId;
+    var actionsId = opts.actionsId;
+    var configKey = opts.configKey;
+    var getPickerValue = opts.getPickerValue;
+    var parseSaved = opts.parseSaved;
+    el(changeBtnId).addEventListener('click', function() {
+      var btn = getHotkeyBtn(actionsId);
+      if (btn) btn.style.display = 'none';
+      var picker = el(pickerId);
+      if (picker) {
+        picker.value = getPickerValue();
+        picker.style.display = 'inline-block';
+        picker.focus();
+      }
+    });
+    el(pickerId).addEventListener('change', async function() {
+      var raw = this.value;
+      var value = parseSaved(raw);
+      await saveConfigKey(configKey, value);
+      config[configKey] = value;
+      applyConfigToHotkeys();
+      updateSaveQuitVisibility();
+      this.style.display = 'none';
+      var btn = getHotkeyBtn(actionsId);
+      if (btn) btn.style.display = '';
+    });
+  }
+  bindHotkeyPicker({
+    changeBtnId: 'change-launch-hotkey',
+    pickerId: 'launch-hotkey-picker',
+    actionsId: 'launch-hotkey-actions',
+    configKey: 'launch_hotkey',
+    getPickerValue: function() { return (config.launch_hotkey == null || config.launch_hotkey === '') ? '__none__' : config.launch_hotkey; },
+    parseSaved: function(raw) { return raw === '__none__' ? null : raw; }
+  });
+  bindHotkeyPicker({
+    changeBtnId: 'change-dictation-hotkey',
+    pickerId: 'dictation-hotkey-picker',
+    actionsId: 'dictation-hotkey-actions',
+    configKey: 'dictation_hotkey',
+    getPickerValue: function() { return config.dictation_hotkey || 'left_ctrl'; },
+    parseSaved: function(raw) { return raw; }
+  });
+  el('save-and-quit').addEventListener('click', function() {
+    try {
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.restart_app === 'function') {
+        window.pywebview.api.restart_app();
+      }
+    } catch (e) { console.error('restart_app:', e); }
+  });
   document.querySelectorAll('.settings-tab').forEach(function(tab) {
     tab.addEventListener('click', function() { showTab(tab.dataset.tab); });
   });
@@ -533,8 +620,11 @@
     await new Promise(function(r) { setTimeout(r, API_DELAY_MS); });
     await loadMics();
     await loadConfig();
+    originalLaunchHotkey = config.launch_hotkey != null ? config.launch_hotkey : null;
+    originalDictationHotkey = config.dictation_hotkey != null ? config.dictation_hotkey : null;
     applyConfigToGeneral();
     applyConfigToHotkeys();
+    updateSaveQuitVisibility();
     refreshModels();
     refreshPermissions();
   });

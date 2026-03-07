@@ -18,6 +18,8 @@ Design notes:
 from __future__ import annotations
 
 import logging
+import shutil
+import tempfile
 import threading
 import time
 from enum import Enum
@@ -165,6 +167,7 @@ class DictateController:
         self._last_worker: threading.Thread | None = None
         self._worker_running: bool = False
         self._target_bundle_id: str | None = None
+        self._dictate_temp_dir: str | None = None
 
     # ------------------------------------------------------------------
     # Read-only state
@@ -249,12 +252,18 @@ class DictateController:
         if not self._model.is_downloaded(model):
             return {"ok": False, "error": ERROR_NO_MODEL, "model": model}
 
-        # Capture the user's current app NOW, before the panel opens and steals focus.
         self._target_bundle_id = _get_frontmost_bundle_id()
 
+        self._dictate_temp_dir = tempfile.mkdtemp(prefix="liscribe_dictate_")
         try:
-            self._audio.start(mic=self._config.default_mic, speaker=False)
+            self._audio.start(
+                mic=self._config.default_mic,
+                speaker=False,
+                save_folder_override=self._dictate_temp_dir,
+            )
         except Exception as exc:
+            shutil.rmtree(self._dictate_temp_dir, ignore_errors=True)
+            self._dictate_temp_dir = None
             logger.error("DictateController: audio start failed: %s", exc)
             return {"ok": False, "error": str(exc)}
 
@@ -329,6 +338,9 @@ class DictateController:
                 _notify("Dictated text copied to clipboard", text[:80])
         finally:
             self._worker_running = False
+            if self._dictate_temp_dir:
+                shutil.rmtree(self._dictate_temp_dir, ignore_errors=True)
+                self._dictate_temp_dir = None
             if self._on_paste_complete:
                 self._on_paste_complete()
 

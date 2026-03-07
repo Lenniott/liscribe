@@ -14,7 +14,11 @@ from __future__ import annotations
 
 import atexit
 import os
+import plistlib
+import shlex
+import subprocess
 import sys
+import threading
 
 # Daemonize before any other imports (rumps, webview, etc. start threads; fork is unsafe after that).
 # Re-exec this script in a new session so the app keeps running after the terminal is closed.
@@ -70,7 +74,7 @@ from liscribe.controllers.dictate_controller import (
 from liscribe.controllers.scribe_controller import ControllerState, ScribeController
 from liscribe.controllers.transcribe_controller import TranscribeController
 from liscribe.services.audio_service import AudioService
-from liscribe.services.config_service import ConfigService
+from liscribe.services.config_service import ConfigService, _get_app_bundle_path
 from liscribe.services.hotkey_service import HotkeyService
 from liscribe.services.model_service import ModelService
 from liscribe.services.permissions_service import has_dictate_permissions
@@ -87,6 +91,45 @@ def _set_scribe_confirm_close(window: webview.Window, value: bool) -> None:
     (Window options). Mutating the window object is required until pywebview exposes a formal API.
     """
     setattr(window, "confirm_close", value)
+
+
+LAUNCH_AGENT_LABEL = "com.liscribe.restart"
+
+
+def _schedule_restart_via_launchd(bundle: Path) -> None:
+    """Write a one-shot LaunchAgent plist that sleeps 2s, opens the app, then unloads itself.
+    The job runs under launchd so it survives when this process exits.
+    Uses bootstrap/bootout on macOS (load/unload are deprecated).
+    """
+    agents_dir = Path.home() / "Library" / "LaunchAgents"
+    agents_dir.mkdir(parents=True, exist_ok=True)
+    plist_path = agents_dir / f"{LAUNCH_AGENT_LABEL}.plist"
+    path_str = str(bundle)
+    uid = os.getuid()
+    domain = f"gui/{uid}"
+    script = f"sleep 2; open -a {shlex.quote(path_str)}; launchctl bootout {shlex.quote(domain)} {shlex.quote(LAUNCH_AGENT_LABEL)}"
+    plist = {
+        "Label": LAUNCH_AGENT_LABEL,
+        "ProgramArguments": ["/bin/sh", "-c", script],
+        "RunAtLoad": True,
+    }
+    try:
+        # Clear any stale job from a previous run that didn't unload
+        subprocess.run(
+            ["launchctl", "bootout", domain, LAUNCH_AGENT_LABEL],
+            capture_output=True,
+            timeout=5,
+        )
+        with open(plist_path, "wb") as f:
+            plistlib.dump(plist, f)
+        subprocess.run(
+            ["launchctl", "bootstrap", domain, str(plist_path)],
+            check=True,
+            capture_output=True,
+            timeout=5,
+        )
+    except Exception as exc:
+        logger.warning("Failed to schedule restart via launchd: %s", exc)
 
 
 if sys.platform != "darwin":
@@ -151,8 +194,81 @@ class _ScribeAppActionsImpl:
         self._app._open_transcribe_with_prefill(wav_path, output_folder=save_folder)
 
 
-# Menu bar icon/title: change this to use a different emoji or set app.icon to an image path later.
+# Menu bar: fallback title when SF Symbol mic icon is unavailable (e.g. macOS < 11).
 MENU_BAR_TITLE = "🎙"
+
+APP_DISPLAY_NAME = "Liscribe"
+
+
+def _set_process_display_name(name: str) -> None:
+    """Set the process name so macOS shows it as the app name (menu bar, CMD+Tab, Dock).
+
+    When running as a Python script the process is normally "Python". This uses the
+    macOS ApplicationServices API so the app appears as e.g. "Liscribe" instead.
+    """
+    try:
+        from ctypes import Structure, c_int, cdll, pointer
+        from ctypes.util import find_library
+
+        lib = find_library("ApplicationServices")
+        if not lib:
+            return
+        app_services = cdll.LoadLibrary(lib)
+        GetCurrentProcess = getattr(app_services, "GetCurrentProcess", None)
+        CPSSetProcessName = getattr(app_services, "CPSSetProcessName", None)
+        if not GetCurrentProcess or not CPSSetProcessName:
+            return
+
+        class ProcessSerialNumber(Structure):
+            _fields_ = [("highLongOfPSN", c_int), ("lowLongOfPSN", c_int)]
+
+        psn = ProcessSerialNumber()
+        if GetCurrentProcess(pointer(psn)) != 0:
+            return
+        CPSSetProcessName(pointer(psn), name.encode("utf-8"))
+    except Exception as exc:
+        logger.debug("Could not set process display name: %s", exc)
+
+
+def _menubar_icon_image() -> object | None:
+    """Return an NSImage: dark grey rounded rect with white mic symbol, or None if unavailable."""
+    try:
+        symbol = AppKit.NSImage.imageWithSystemSymbolName_accessibilityDescription_(
+            "mic", None
+        )
+        if symbol is None:
+            return None
+        # Menu bar icon size (points); use 2x for sharp retina.
+        w, h = 22.0, 22.0
+        size = AppKit.NSMakeSize(w, h)
+        img = AppKit.NSImage.alloc().initWithSize_(size)
+        img.lockFocus()
+        # Dark grey rounded rect background so the icon is visible on any menu bar.
+        gray = 0
+        AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(
+            gray, gray, gray, 0
+        ).set()
+        rect = AppKit.NSMakeRect(0, 0, w, h)
+        path = AppKit.NSBezierPath.bezierPathWithRoundedRect_xRadius_yRadius_(
+            rect, 2, 4
+        )
+        path.fill()
+        # Draw mic symbol in white: fill white then use symbol as mask (DestinationIn = keep where symbol is opaque).
+        inset = 5.0
+        symbol_rect = AppKit.NSMakeRect(inset, inset, w - 2 * inset, h - 1.5 * inset)
+        AppKit.NSColor.whiteColor().set()
+        AppKit.NSRectFill(symbol_rect)
+        symbol.drawInRect_fromRect_operation_fraction_(
+            symbol_rect,
+            AppKit.NSMakeRect(0, 0, symbol.size().width, symbol.size().height),
+            AppKit.NSCompositeDestinationIn,
+            1.0,
+        )
+        img.unlockFocus()
+        return img
+    except (AttributeError, Exception) as exc:
+        logger.debug("Could not create menubar icon image: %s", exc)
+        return None
 
 
 class LiscribeApp(rumps.App):
@@ -170,6 +286,17 @@ class LiscribeApp(rumps.App):
         hotkey: HotkeyService,
     ) -> None:
         super().__init__(MENU_BAR_TITLE, quit_button="Quit")
+
+        icon_nsimage = _menubar_icon_image()
+        if icon_nsimage is not None:
+            self._icon_nsimage = icon_nsimage
+            self._title = ""
+            try:
+                AppKit.NSApplication.sharedApplication().setApplicationIconImage_(
+                    icon_nsimage
+                )
+            except Exception:
+                pass
 
         self._config = config
         self._audio = audio
@@ -213,6 +340,14 @@ class LiscribeApp(rumps.App):
             model=model,
             audio=audio,
             on_close=lambda: AppHelper.callAfter(self._close_settings_panel),
+            on_restart=lambda: AppHelper.callAfter(self._schedule_restart),
+            # Reserved for future in-process hotkey reload when safe on macOS; not called by bridge (changes apply after full restart).
+            on_launch_hotkey_changed=lambda: threading.Thread(
+                target=self._hotkey.restart_scribe_listener, daemon=True, name="restart-scribe-hotkey"
+            ).start(),
+            on_dictation_hotkey_changed=lambda: threading.Thread(
+                target=self._hotkey.restart_dictate_listener, daemon=True, name="restart-dictate-hotkey"
+            ).start(),
         )
 
         # name → open webview.Window (None-entry means window was closed)
@@ -334,6 +469,24 @@ class LiscribeApp(rumps.App):
         # Phase 7: Settings bridge needs window for pick_folder, pick_app, navigate_help.
         if name == "settings" and js_api is not None and hasattr(js_api, "set_window"):
             js_api.set_window(window)
+
+    def _schedule_restart(self) -> None:
+        """Quit and relaunch the app. Uses a launchd one-shot job when running as .app so the
+        restarter is not our child and survives when we exit.
+        """
+        bundle = _get_app_bundle_path()
+        if bundle:
+            _schedule_restart_via_launchd(bundle)
+        else:
+            # Dev mode: subprocess may be killed when we quit; launchd not used.
+            subprocess.Popen(
+                ["/bin/sh", "-c", "(sleep 2; exec \"$0\" -m liscribe ${1+\"$@\"}) &", sys.executable] + sys.argv[1:],
+                start_new_session=True,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        AppHelper.callAfter(lambda: AppKit.NSApplication.sharedApplication().terminate_(None))
 
     # ------------------------------------------------------------------
     # Menu callbacks
@@ -472,10 +625,9 @@ class LiscribeApp(rumps.App):
     # ------------------------------------------------------------------
 
     def _on_dictate_trigger(self, handler_name: str) -> None:
-        """Common handler: call the controller, show panel or Setup Required modal."""
+        """Call the controller, show panel or Setup Required modal."""
         ctrl = self._dictate_ctrl
         handler = getattr(ctrl, handler_name)
-
         result = handler()
         if not result.get("ok"):
             error = result.get("error")
@@ -495,8 +647,6 @@ class LiscribeApp(rumps.App):
                 )
             return
 
-        # Show panel when recording starts. When stopping, leave panel open to show
-        # processing state until transcribe/paste completes (on_paste_complete closes it).
         if ctrl.is_recording:
             x, y = self._cursor_position_for_panel(320, 100)
             AppHelper.callAfter(self._open_dictate_panel, x, y)
@@ -678,6 +828,7 @@ class LiscribeApp(rumps.App):
 
 def main() -> None:
     logging.basicConfig(level=logging.WARNING)
+    _set_process_display_name(APP_DISPLAY_NAME)
 
     def activate_on_main_thread() -> None:
         AppKit.NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
@@ -716,6 +867,11 @@ def main() -> None:
             hotkey.start_dictate_listener()
     except Exception:
         logger.warning("Could not start dictate key listener at startup", exc_info=True)
+
+    # Menu bar only: hide from Dock so the app appears only in the top menu bar.
+    AppKit.NSApplication.sharedApplication().setActivationPolicy_(
+        AppKit.NSApplicationActivationPolicyAccessory
+    )
 
     app.run()
 

@@ -152,7 +152,13 @@ class TestHandleToggleStart:
     def test_audio_start_called_with_default_mic(self, controller, audio_svc, config_svc):
         config_svc.default_mic = None
         controller.handle_toggle()
-        audio_svc.start.assert_called_once_with(mic=None, speaker=False)
+        audio_svc.start.assert_called_once()
+        call_kw = audio_svc.start.call_args[1]
+        assert call_kw["mic"] is None
+        assert call_kw["speaker"] is False
+        assert "save_folder_override" in call_kw
+        assert call_kw["save_folder_override"] is not None
+        assert "liscribe_dictate_" in call_kw["save_folder_override"]
 
     def test_speaker_always_false(self, controller, audio_svc, config_svc):
         config_svc.default_mic = "USB Mic"

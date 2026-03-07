@@ -175,22 +175,26 @@ textarea:focus {
 .toggle input[type="checkbox"] { display: none; }
 
 .toggle-track {
+  display: inline-block;
+  flex-shrink: 0;
   width: 36px;
   height: 20px;
   background: var(--bg-input);
+  border: 1px solid var(--border);
   border-radius: 10px;
   position: relative;
-  transition: background var(--transition);
+  transition: background var(--transition), border-color var(--transition);
 }
 
 .toggle input:checked + .toggle-track {
   background: var(--accent-green);
+  border-color: var(--accent-green);
 }
 
 .toggle-thumb {
   position: absolute;
-  top: 2px;
-  left: 2px;
+  top: 1px;
+  left: 1px;
   width: 16px;
   height: 16px;
   border-radius: 50%;
