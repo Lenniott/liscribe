@@ -6,6 +6,11 @@ not done, regardless of whether the feature works.
 Read `docs/v2-rubric.md` and `docs/plan-v2.md` now. Do not write a single line of
 code until you have done this.
 
+**Document maintenance (your responsibility):** When you complete or change a phase, keep three docs in sync:
+- **docs/v2-rubric.md** — Check off or uncheck success criteria for the workflows you touched. Update the status line at the bottom if a workflow moves from pending to verified.
+- **docs/plan-v2.md** — Update the Phase Status table, mark done conditions with [x], and add any new files (e.g. app_instance.py) to the folder structure if you introduced them.
+- **docs/architecture.md** — If you add containers, components, or change app lifecycle (e.g. single-instance), update the C4 diagrams or the Single instance / Panel load sections so the architecture doc remains the source of truth for structure and behaviour.
+
 ---
 
 ## Before you write any code — answer these five questions explicitly
@@ -97,12 +102,11 @@ Before saying a phase is done, review every file you touched and check for:
 
 ## Diagram alignment check
 
-Before marking done, verify the code matches `docs/plan-v2.md` C4 diagrams:
+Before marking done, verify the code matches the C4 and scaffold docs:
 
-- Does every new file sit in the correct layer folder?
-- Does the call chain match: panel → bridge → controller → service → engine?
-- Are the file names exactly as specified in the Phase 2 scaffold?
-- If you deviated from the scaffold, document why in a comment at the top of the file.
+- **docs/architecture.md** — Canonical C4 diagrams (Mermaid) live here. Does your change fit the existing Context / Container / Component structure? If you added a new container or component, update the diagrams.
+- **docs/plan-v2.md** — Does every new file sit in the correct layer folder? Are file names exactly as in the Phase 2 scaffold? If you added a file not in the original scaffold (e.g. app_instance.py), add it to the folder structure in the plan.
+- Call chain: panel → bridge → controller → service → engine. If you deviated from the scaffold, document why in a comment at the top of the file.
 
 Structural drift in early phases becomes load-bearing by Phase 7.
 Flag deviations now, not later.

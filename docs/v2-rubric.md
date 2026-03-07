@@ -2,7 +2,8 @@
 
 > This document defines what "done" means for every part of Liscribe v2.
 > Nothing gets planned or built until each section is verified by Ben.
-> Status: DRAFT — awaiting verification
+>
+> **Document maintenance:** Keep this rubric in sync with `docs/plan-v2.md` (phase status and done conditions) and `docs/architecture.md` (C4 diagrams and behaviour). When a phase is signed off, update the rubric success criteria checkboxes and the plan; when architecture or app lifecycle changes, update architecture.md. See `docs/starter.md` and `docs/reviewer.md` for the maintenance workflow.
 
 ---
 
@@ -529,22 +530,22 @@ When speaker capture is enabled, Scribe records two streams independently — mi
 - Near-duplicate lines caused by mic bleed (the speaker audio bleeding into the mic) are suppressed
 
 **Success criteria:**
-- [ ] Panel opens from menu bar and from hotkey `⌃ ⌥ L`
-- [ ] Recording starts immediately on panel open
-- [ ] Waveform reflects live audio input
-- [ ] Notes appear as timestamped footnotes in markdown output
-- [ ] Speaker toggle works mid-session cleanly
-- [ ] Mic selector swaps source mid-recording without interrupting the file
-- [ ] Preferred mic unavailable → silent fallback to system default + visible indicator
-- [ ] Speaker capture OFF → single-stream transcript, no source labels
-- [ ] Speaker capture ON → dual-stream transcript with `in:` / `out:` labels, merged chronologically
-- [ ] Near-duplicate lines from mic bleed are always suppressed in dual-source output — not configurable
-- [ ] 2+ models → 2+ transcript files each suffixed with model name
-- [ ] WAV retained or deleted per global setting
-- [ ] No model available → WAV saved, "Open in Transcribe →" action shown with file and output path pre-filled
-- [ ] Cancel and clicking any close gesture while recording prompts: Stop & Save or Discard
-- [ ] Stopping triggers transcription with visible per-model progress
-- [ ] Completed transcripts accessible after transcription completes
+- [x] Panel opens from menu bar and from hotkey `⌃ ⌥ L`
+- [x] Recording starts immediately on panel open
+- [x] Waveform reflects live audio input
+- [x] Notes appear as timestamped footnotes in markdown output
+- [x] Speaker toggle works mid-session cleanly
+- [x] Mic selector swaps source mid-recording without interrupting the file
+- [x] Preferred mic unavailable → silent fallback to system default + visible indicator
+- [x] Speaker capture OFF → single-stream transcript, no source labels
+- [x] Speaker capture ON → dual-stream transcript with `in:` / `out:` labels, merged chronologically
+- [x] Near-duplicate lines from mic bleed are always suppressed in dual-source output — not configurable
+- [x] 2+ models → 2+ transcript files each suffixed with model name
+- [x] WAV retained or deleted per global setting
+- [x] No model available → WAV saved, "Open in Transcribe →" action shown with file and output path pre-filled
+- [x] Cancel and clicking any close gesture while recording prompts: Stop & Save or Discard
+- [x] Stopping triggers transcription with visible per-model progress
+- [x] Completed transcripts accessible after transcription completes
 
 ---
 
@@ -553,13 +554,13 @@ When speaker capture is enabled, Scribe records two streams independently — mi
 **Entry:** Menu bar → Transcribe
 
 **Success criteria:**
-- [ ] Panel opens from menu bar
-- [ ] File picker accepts .wav, .mp3, .m4a; rejects others with a visible error
-- [ ] Output folder defaults to global setting, overridable per session
-- [ ] 2+ models → 2+ transcript files, each with model suffix
-- [ ] Progress visible per model during transcription; ✕ hidden until all models complete
-- [ ] Each completed file has an "Open Transcript" button using the command set in Settings
-- [ ] Corrupt or unsupported file shows a clear error — never a silent failure
+- [x] Panel opens from menu bar
+- [x] File picker accepts .wav, .mp3, .m4a; rejects others with a visible error
+- [x] Output folder defaults to global setting, overridable per session
+- [x] 2+ models → 2+ transcript files, each with model suffix
+- [x] Progress visible per model during transcription; ✕ hidden until all models complete
+- [x] Each completed file has an "Open Transcript" button using the command set in Settings
+- [x] Corrupt or unsupported file shows a clear error — never a silent failure
 
 ---
 
@@ -755,10 +756,11 @@ Add / Edit rule form (shown inline):
 
 ## Architecture Requirements
 
-- C4 Context, Container, and Component diagrams written and approved before implementation
-- UI sketches (this document) approved before implementation
-- Each module (Scribe, Transcribe, Dictate, Settings, Onboarding) defines a clear interface — no module reaches into another's internals
-- Shared concerns (config, audio device management, model management) extracted into standalone services with defined ownership
+- [x] C4 Context, Container, and Component diagrams written and maintained in **docs/architecture.md** (Mermaid C4)
+- [x] UI sketches (this document) approved before implementation
+- [x] Each module (Scribe, Transcribe, Dictate, Settings, Onboarding) defines a clear interface — no module reaches into another's internals
+- [x] Shared concerns (config, audio device management, model management) extracted into standalone services with defined ownership
+- [x] Single instance: one process per user; second launch activates existing app and exits (documented in architecture.md; implemented in app_instance.py)
 
 ---
 
@@ -773,5 +775,5 @@ Add / Edit rule form (shown inline):
 
 ---
 
-*Status: DRAFT — stack updated to Python/rumps/pywebview*
-*Verified by Ben: NO — pending review*
+*Status: In progress — Scribe and Transcribe verified per plan-v2 Phase 4–5. Dictate, Settings, Onboarding, Word Replacement pending.*
+*Rubric, plan-v2, and architecture maintenance: see docs/starter.md and docs/reviewer.md.*

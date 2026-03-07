@@ -19,9 +19,9 @@
 | 1 | Strip to engine foundation | ✅ Done — 53 tests passing |
 | 2 | Architecture + scaffold | ✅ Done — scaffold in place, 53 tests passing |
 | 3 | Menu bar + panel skeleton | ✅ Done — app.py + services + panel stubs, 53 tests passing |
-| 4 | Scribe workflow | ✅ Implemented + fixes applied — 246 tests passing |
-| 5 | Transcribe workflow | ⬜ Next |
-| 6 | Dictate workflow | ⬜ |
+| 4 | Scribe workflow | ✅ Done — 246 tests passing |
+| 5 | Transcribe workflow | ✅ Done — prefill from Scribe, model list with download status, init delay/retry |
+| 6 | Dictate workflow | ⬜ Next |
 | 7 | Settings | ⬜ |
 | 8 | Onboarding | ⬜ |
 | 9 | Bundle + install | ⬜ |
@@ -33,7 +33,7 @@
 
 **Done.** 53 tests passing on Python 3.13 via `.venv/bin/pytest`.
 
-Engine files kept verbatim:
+Engine files kept verbatim (config.py was later extended with `CACHE_DIR` for shared cache root — used by `app_instance`, transcriber):
 ```
 src/liscribe/__init__.py
 src/liscribe/config.py
@@ -152,6 +152,8 @@ Shared services (not panels):
                     and ScribeController
 ```
 
+**Canonical C4 diagrams** — Level 1 (Context), Level 2 (Container), and Level 3 (Component) are maintained as Mermaid C4 diagrams in **docs/architecture.md**. Use that file for rendered diagrams and single-instance / panel-load behaviour.
+
 ---
 
 ### New Folder Structure to Create
@@ -161,6 +163,7 @@ Create these empty files exactly. Content comes in later phases.
 ```
 src/liscribe/
 ├── app.py                     # rumps App entry point — Phase 3
+├── app_instance.py            # single-instance lock + activate socket (one process per user)
 ├── bridge/
 │   ├── __init__.py
 │   ├── scribe_bridge.py       # Phase 4
@@ -276,11 +279,12 @@ pynput>=1.7.6
 - Dark background, system font stack, consistent spacing
 
 **Done condition:**
-- [ ] `python src/liscribe/app.py` shows menu bar icon
-- [ ] All 5 menu items are present and labelled correctly
-- [ ] Clicking each item opens a blank (white or styled) panel window
-- [ ] Quit removes the icon
-- [ ] `.venv/bin/pytest` still 53 passed
+- [x] `python src/liscribe/app.py` shows menu bar icon
+- [x] All 5 menu items are present and labelled correctly (Scribe, Dictate, Transcribe, Settings, Quit)
+- [x] Clicking each item opens a blank (white or styled) panel window
+- [x] Quit removes the icon
+- [x] Second launch does not open a duplicate — single-instance lock and activate socket (see `app_instance.py`); second process activates existing app and exits
+- [x] `.venv/bin/pytest` still 53 passed (or higher after later phases)
 
 ---
 
@@ -339,38 +343,39 @@ tests/test_scribe_bridge.py
 
 ---
 
-## Phase 5 — Transcribe Workflow
+## Phase 5 — Transcribe Workflow ✅
 
 **Goal:** Transcribe panel fully functional end-to-end per the rubric.
 
-**First task:** Wire Scribe’s "Open in Transcribe →" so that `open_in_transcribe(wav_path)` opens the Transcribe panel with `wav_path` pre-filled (via TranscribeBridge).
+**First task:** Wire Scribe’s "Open in Transcribe →" so that `open_in_transcribe(wav_path)` opens the Transcribe panel with `wav_path` pre-filled (via TranscribeBridge). **Done** — prefill uses `get_initial_state()`, `set_audio_path()`, `set_output_folder()`.
 
-**Files to write:**
+**Files written:**
 
 `src/liscribe/ui/panels/transcribe.html`
 - File picker (.wav .mp3 .m4a)
 - Output folder picker
-- Model checkboxes
+- Model checkboxes (download status: disabled + "(not downloaded)" for unavailable models; init delay + retry so list populates like Scribe)
 - Transcribe button (disabled until file selected)
 - In-progress state (per-model progress bars)
 - Complete state (per-file Open Transcript buttons)
 
 `src/liscribe/bridge/transcribe_bridge.py`
-- JS-callable: `pick_file()`, `pick_folder()`, `get_models()`,
-  `transcribe()`, `open_transcript(path)`, `get_progress()`
+- JS-callable: `get_initial_state()`, `pick_file()`, `pick_folder()`, `set_audio_path()`, `set_output_folder()`, `get_models()`, `set_models()`, `transcribe()`, `get_progress()`, `open_transcript(path)`
 
-**New tests:**
+**Tests:**
 ```
 tests/test_transcribe_bridge.py
+tests/test_transcribe_controller.py
 ```
 
 **Done condition — all rubric Transcribe criteria met:**
-- [ ] File picker accepts .wav .mp3 .m4a; rejects others with visible error
-- [ ] Output folder defaults to global setting, overridable
-- [ ] 2+ models → 2+ files with model suffix
-- [ ] Progress visible per model; ✕ hidden until all complete
-- [ ] Each completed file has Open Transcript button
-- [ ] Corrupt/unsupported file → visible error, never silent
+- [x] File picker accepts .wav .mp3 .m4a; rejects others with visible error
+- [x] Output folder defaults to global setting, overridable
+- [x] Model list shows download status and disables unavailable models (matches Scribe)
+- [x] 2+ models → 2+ files with model suffix
+- [x] Progress visible per model; ✕ hidden until all complete
+- [x] Each completed file has Open Transcript button
+- [x] Corrupt/unsupported file → visible error, never silent
 
 ---
 
@@ -688,8 +693,9 @@ Must cover (all written before `replacements.py` is implemented):
    tests written first. UI HTML does not need unit tests.
 
 3. **Never modify engine files** (`recorder.py`, `transcriber.py`, `output.py`,
-   `notes.py`, `transcribe_worker.py`, `waveform.py`). These are frozen.
-   If a bug is found, note it — don't fix it in place.
+   `notes.py`, `transcribe_worker.py`, `waveform.py`, `config.py`). These are frozen.
+   Exception: `config.py` may define path constants (e.g. `CACHE_DIR`); transcriber may
+   reference them. If a bug is found in engine code, note it — don't fix it in place.
 
 4. **One phase at a time.** Do not start Phase N+1 until Phase N's done
    condition is fully met and confirmed.

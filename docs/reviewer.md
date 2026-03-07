@@ -1,7 +1,8 @@
-
 Look over the diff, check changes. Review it now.
 Be direct. Do not soften findings. Every unflagged issue becomes
 technical debt that costs more to fix later.
+
+**Document maintenance:** Before signing off a phase, ensure **docs/v2-rubric.md**, **docs/plan-v2.md**, and **docs/architecture.md** are updated. Rubric success criteria checkboxes, plan phase status and done conditions, and architecture diagrams/behaviour must reflect what was built. See **docs/starter.md** for the maintenance workflow.
 
 ---
 
@@ -48,13 +49,14 @@ flag the interpretation. The rubric wins over the implementation.
 
 ## 4. Architecture check
 
-Verify the C4 structure from `docs/plan-v2.md` is intact:
+Verify the C4 structure and docs are intact:
 
-- Does the call chain hold: panel → bridge → controller → service → engine?
-- Is anything importing across layers it shouldn't?
-- Are services instantiated in `app.py` and passed down — not created inside controllers?
-- Do all new files sit in the correct layer folders?
-- Do file names match the Phase 2 scaffold exactly?
+- **docs/architecture.md** — Do C4 diagrams (Mermaid) and Single instance / Panel load sections still match the code? Update them if this phase added or changed containers, components, or app lifecycle.
+- **docs/plan-v2.md** — Phase Status table and folder structure: add any new files; mark phase done and check off done conditions when signing off.
+- **docs/v2-rubric.md** — Success criteria for the workflows touched: check off items that are now met; leave unchecked if not verified.
+- Call chain: panel → bridge → controller → service → engine. Anything importing across layers it shouldn't?
+- Services instantiated in `app.py` and passed down — not created inside controllers?
+- New files in the correct layer folders? File names match the Phase 2 scaffold (or scaffold updated)?
 
 Flag every deviation. "It works anyway" is not a defence.
 Structure drift in Phase 3 is a footnote. Structure drift in Phase 7 is a rewrite.
@@ -109,12 +111,12 @@ Name the file, the function, and the future phase it will affect.
 
 **PASS**
 All done conditions met with evidence. Tests increased. No structural violations.
-No blocking code quality issues. Ready for next phase.
+No blocking code quality issues. Before closing: rubric, plan-v2, and architecture updated. Ready for next phase.
 
 **PASS WITH DEBT**
 Done conditions met. Tests increased. Issues found that are not blocking
 but will compound if not addressed. List each item as a named debt entry.
-Project owner decides: fix now or log and move on.
+Before closing: rubric, plan-v2, and architecture updated. Project owner decides: fix now or log and move on.
 
 **FAIL**
 One or more of the following is true:
