@@ -177,7 +177,7 @@ class AudioService:
             return []
         with self._session._lock:
             if not self._session._mic_chunks:
-                return []
+                return [0.0] * bars
             mic_chunk = self._session._mic_chunks[-1].flatten()
             speaker_chunk = None
             if self._session.speaker and self._session._speaker_chunks:

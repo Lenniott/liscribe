@@ -58,14 +58,21 @@ import AppKit
 from PyObjCTools import AppHelper
 
 from liscribe import app_instance
+from liscribe.bridge.dictate_bridge import DictateBridge
 from liscribe.bridge.scribe_bridge import ScribeAppActions, ScribeBridge
 from liscribe.bridge.transcribe_bridge import TranscribeBridge
+from liscribe.controllers.dictate_controller import (
+    ERROR_NO_MODEL,
+    ERROR_SETUP_REQUIRED,
+    DictateController,
+)
 from liscribe.controllers.scribe_controller import ControllerState, ScribeController
 from liscribe.controllers.transcribe_controller import TranscribeController
 from liscribe.services.audio_service import AudioService
 from liscribe.services.config_service import ConfigService
 from liscribe.services.hotkey_service import HotkeyService
 from liscribe.services.model_service import ModelService
+from liscribe.services.permissions_service import has_dictate_permissions
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +126,7 @@ _cocoa_guilib.BrowserView.WindowDelegate.windowWillClose_ = _window_will_close_n
 class _ScribeAppActionsImpl:
     """Implements ScribeAppActions by delegating to the app's Scribe lifecycle methods."""
 
-    def __init__(self, app: "LiscribleApp") -> None:
+    def __init__(self, app: "LiscribeApp") -> None:
         self._app = app
 
     def close_panel(self) -> None:
@@ -135,7 +142,7 @@ class _ScribeAppActionsImpl:
         self._app._open_transcribe_with_prefill(wav_path, output_folder=save_folder)
 
 
-class LiscribleApp(rumps.App):
+class LiscribeApp(rumps.App):
     """Menu bar application.
 
     Owns the four singleton services and manages the lifecycle of
@@ -172,6 +179,16 @@ class LiscribleApp(rumps.App):
             audio=audio,
             app_actions=_ScribeAppActionsImpl(self),
         )
+
+        # Dictate controller + bridge (Phase 6).
+        self._dictate_ctrl = DictateController(
+            audio=audio,
+            model=model,
+            config=config,
+            can_dictate=has_dictate_permissions,
+            on_paste_complete=lambda: AppHelper.callAfter(self._close_dictate_panel),
+        )
+        self._dictate_bridge = DictateBridge(controller=self._dictate_ctrl)
 
         # name → open webview.Window (None-entry means window was closed)
         self._panels: dict[str, webview.Window] = {}
@@ -334,7 +351,195 @@ class LiscribleApp(rumps.App):
         )
 
     def open_dictate(self, _: Any = None) -> None:
-        self._open_panel("dictate", "Dictate", width=320, height=100, resizable=False)
+        """Open the Dictate panel and start recording if idle (menu or hotkey)."""
+        self._hotkey.start_dictate_listener()
+        if self._dictate_ctrl.is_recording:
+            x, y = self._cursor_position_for_panel(panel_width=320, panel_height=100)
+            self._open_dictate_panel(x=x, y=y)
+        else:
+            self._on_dictate_trigger("handle_toggle")
+
+    def _open_dictate_panel(self, x: int | None = None, y: int | None = None) -> None:
+        """Create or show the Dictate panel window at the given screen position."""
+        existing = self._panels.get("dictate")
+        if existing is not None:
+            try:
+                existing.show()
+                return
+            except Exception:
+                logger.warning("Could not show existing Dictate panel; recreating", exc_info=True)
+                self._panels.pop("dictate", None)
+
+        self._ensure_panel_server()
+        create_kwargs: dict[str, Any] = {"js_api": self._dictate_bridge}
+        if x is not None:
+            create_kwargs["x"] = x
+        if y is not None:
+            create_kwargs["y"] = y
+
+        window = webview.create_window(
+            "Dictate",
+            self._panel_url("dictate"),
+            width=320,
+            height=100,
+            resizable=False,
+            on_top=True,
+            min_size=(200, 80),
+            **create_kwargs,
+        )
+
+        def _on_closed() -> None:
+            self._panels.pop("dictate", None)
+
+        window.events.closed += _on_closed
+        self._panels["dictate"] = window
+
+        if not hasattr(window, "localization"):
+            from webview.localization import original_localization
+            window.localization = original_localization.copy()
+        if not hasattr(window, "js_api_endpoint"):
+            window.js_api_endpoint = None
+        if window.gui is None:
+            window.gui = webview.guilib
+        window.real_url = window.original_url
+
+        webview.guilib.create_window(window)
+
+    def _cursor_position_for_panel(
+        self, panel_width: int = 320, panel_height: int = 100
+    ) -> tuple[int, int]:
+        """Return (x, y) screen coords to place a panel near the mouse cursor.
+
+        Adjusts so the panel stays on screen. Falls back to (100, 100) on error.
+        """
+        try:
+            # NSEvent.mouseLocation() returns Cocoa coordinates (origin = bottom-left).
+            # Convert to top-left origin for pywebview by subtracting from screen height.
+            mouse = AppKit.NSEvent.mouseLocation()
+            screen = AppKit.NSScreen.mainScreen().frame()
+            screen_h = int(screen.size.height)
+            screen_w = int(screen.size.width)
+
+            x = int(mouse.x) + 12  # offset right of cursor
+            y = screen_h - int(mouse.y) - panel_height - 12  # convert Y + offset below cursor
+
+            # Clamp so panel stays on screen.
+            x = max(0, min(x, screen_w - panel_width))
+            y = max(0, min(y, screen_h - panel_height))
+            return x, y
+        except Exception:
+            logger.debug("Could not read cursor position for Dictate panel", exc_info=True)
+            return 100, 100
+
+    # ------------------------------------------------------------------
+    # Dictate hotkey callbacks (called from hotkey service)
+    # ------------------------------------------------------------------
+
+    def _on_dictate_trigger(self, handler_name: str) -> None:
+        """Common handler: call the controller, show panel or Setup Required modal."""
+        ctrl = self._dictate_ctrl
+        handler = getattr(ctrl, handler_name)
+
+        result = handler()
+        if not result.get("ok"):
+            error = result.get("error")
+            if error == ERROR_SETUP_REQUIRED:
+                missing = result.get("missing_permissions", [])
+                AppHelper.callAfter(self._show_dictate_setup_required, missing)
+            elif error == ERROR_NO_MODEL:
+                model = result.get("model", "base")
+                AppHelper.callAfter(
+                    self._show_notification,
+                    "Dictate — model not downloaded",
+                    f"Download the '{model}' model in Settings → Models.",
+                )
+            else:
+                AppHelper.callAfter(
+                    self._show_notification, "Dictate error", str(error or "Unknown error")
+                )
+            return
+
+        # Show panel when recording starts. When stopping, leave panel open to show
+        # processing state until transcribe/paste completes (on_paste_complete closes it).
+        if ctrl.is_recording:
+            x, y = self._cursor_position_for_panel(320, 100)
+            AppHelper.callAfter(self._open_dictate_panel, x, y)
+
+    def _on_dictate_stop_if_recording(self) -> None:
+        """Stop a toggle-mode recording on single ^ press. Does nothing when idle."""
+        if self._dictate_ctrl.is_recording:
+            self._on_dictate_trigger("handle_toggle")
+
+    def _on_dictate_toggle(self) -> None:
+        self._on_dictate_trigger("handle_toggle")
+
+    def _on_dictate_hold_start(self) -> None:
+        self._on_dictate_trigger("handle_hold_start")
+
+    def _on_dictate_hold_end(self) -> None:
+        self._on_dictate_trigger("handle_hold_end")
+
+    def _close_dictate_panel(self) -> None:
+        w = self._panels.get("dictate")
+        if w is not None:
+            try:
+                w.destroy()
+            except Exception as exc:
+                logger.warning("Could not destroy Dictate panel: %s", exc)
+            self._panels.pop("dictate", None)
+
+    def _show_notification(self, title: str, message: str) -> None:
+        try:
+            import rumps
+            rumps.notification(title, "", message, sound=False)
+        except Exception:
+            logger.debug("Could not show notification: %s — %s", title, message, exc_info=True)
+
+    def _show_dictate_setup_required(self, missing: list[str]) -> None:
+        """Show the Setup Required modal for missing Dictate permissions.
+
+        Opens the dictate.html panel in setup-required mode by passing the
+        missing permission list as a query parameter.
+        # TODO Phase 7: deep-link to Settings → Help → Permissions anchor.
+        """
+        names = ",".join(missing)
+        self._ensure_panel_server()
+        base_url = self._panel_url("dictate")
+        url = f"{base_url}?setup_required={names}"
+
+        existing = self._panels.get("dictate")
+        if existing is not None:
+            try:
+                existing.load_url(url)
+                existing.show()
+                return
+            except Exception:
+                self._panels.pop("dictate", None)
+
+        window = webview.create_window(
+            "Setup Required",
+            url,
+            width=460,
+            height=320,
+            resizable=False,
+        )
+
+        def _on_closed() -> None:
+            self._panels.pop("dictate", None)
+
+        window.events.closed += _on_closed
+        self._panels["dictate"] = window
+
+        if not hasattr(window, "localization"):
+            from webview.localization import original_localization
+            window.localization = original_localization.copy()
+        if not hasattr(window, "js_api_endpoint"):
+            window.js_api_endpoint = None
+        if window.gui is None:
+            window.gui = webview.guilib
+        window.real_url = window.original_url
+
+        webview.guilib.create_window(window)
 
     def open_transcribe(self, _: Any = None) -> None:
         self._open_panel(
@@ -414,14 +619,27 @@ def main() -> None:
     model = ModelService(config)
     hotkey = HotkeyService(config)
 
-    app = LiscribleApp(config=config, audio=audio, model=model, hotkey=hotkey)
+    app = LiscribeApp(config=config, audio=audio, model=model, hotkey=hotkey)
 
     hotkey.start(
         on_scribe=lambda: AppHelper.callAfter(app.open_scribe),
-        on_dictate_toggle=lambda: None,
-        on_dictate_hold_start=lambda: None,
-        on_dictate_hold_end=lambda: None,
+        on_dictate_toggle=lambda: AppHelper.callAfter(app._on_dictate_trigger, "handle_toggle"),
+        on_dictate_hold_start=lambda: AppHelper.callAfter(app._on_dictate_trigger, "handle_hold_start"),
+        on_dictate_hold_end=lambda: AppHelper.callAfter(app._on_dictate_trigger, "handle_hold_end"),
+        on_dictate_single_release=lambda: AppHelper.callAfter(app._on_dictate_stop_if_recording),
+        get_is_toggle_recording=lambda: app._dictate_ctrl.is_toggle_recording,
     )
+
+    # Start the dictate key listener immediately if permissions are already granted.
+    # This lets ^^ work without requiring the user to open Dictate from the menu first.
+    # open_dictate() also calls start_dictate_listener() as a fallback for the case
+    # where permissions are granted later (or this call was skipped due to an error).
+    try:
+        ok, missing = has_dictate_permissions()
+        if ok:
+            hotkey.start_dictate_listener()
+    except Exception:
+        logger.warning("Could not start dictate key listener at startup", exc_info=True)
 
     app.run()
 

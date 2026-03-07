@@ -75,7 +75,7 @@ class ConfigService:
 
     @property
     def dictation_hotkey(self) -> str:
-        return str(self._values.get("dictation_hotkey", "right_option"))
+        return str(self._values.get("dictation_hotkey", "left_ctrl"))
 
     @dictation_hotkey.setter
     def dictation_hotkey(self, key: str) -> None:

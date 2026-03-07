@@ -88,7 +88,7 @@ class TestTypedProperties:
         assert svc.dictation_model == "base"
 
     def test_dictation_hotkey_default(self, svc):
-        assert svc.dictation_hotkey == "right_option"
+        assert svc.dictation_hotkey == "left_ctrl"
 
     def test_dictation_auto_enter_default(self, svc):
         assert svc.dictation_auto_enter is True

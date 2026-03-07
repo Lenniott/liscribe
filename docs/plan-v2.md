@@ -21,8 +21,8 @@
 | 3 | Menu bar + panel skeleton | ✅ Done — app.py + services + panel stubs, 53 tests passing |
 | 4 | Scribe workflow | ✅ Done — 246 tests passing |
 | 5 | Transcribe workflow | ✅ Done — prefill from Scribe, model list with download status, init delay/retry |
-| 6 | Dictate workflow | ⬜ Next |
-| 7 | Settings | ⬜ |
+| 6 | Dictate workflow | ✅ Done — hotkey state machine, floating panel, paste, Setup Required |
+| 7 | Settings | ⬜ Next |
 | 8 | Onboarding | ⬜ |
 | 9 | Bundle + install | ⬜ |
 | 10 | Word Replacement | ⬜ |
@@ -379,7 +379,7 @@ tests/test_transcribe_controller.py
 
 ---
 
-## Phase 6 — Dictate Workflow
+## Phase 6 — Dictate Workflow ✅
 
 **Goal:** Dictate fully functional — both hotkey modes, floating panel,
 paste, fallback to clipboard. Setup Required modal for missing permissions.
@@ -408,15 +408,15 @@ tests/test_dictate_controller.py
 ```
 
 **Done condition — all rubric Dictate criteria met:**
-- [ ] Double-tap toggle works
-- [ ] Hold mode works
-- [ ] Both modes available simultaneously
-- [ ] Panel near focused input, doesn't steal focus
-- [ ] Text pasted at cursor
-- [ ] Auto-enter respects setting
-- [ ] No focused input → clipboard + notification
-- [ ] Missing permission → Setup Required modal with Help ↗ link
-- [ ] Permission granted → next trigger works without restart
+- [x] Double-tap toggle works
+- [x] Hold mode works
+- [x] Both modes available simultaneously
+- [x] Panel near focused input, doesn't steal focus
+- [x] Text pasted at cursor
+- [x] Auto-enter respects setting
+- [x] No focused input → clipboard + notification
+- [x] Missing permission → Setup Required modal with Help ↗ link
+- [x] Permission granted → next trigger works without restart
 - [ ] Word replacements (scope Dictate or Both) applied before paste — see Phase 10
 
 ---

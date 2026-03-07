@@ -6,20 +6,291 @@
   <title>Dictate</title>
   <link rel="stylesheet" href="../assets/style.css">
   <style>
+    /* Compact floating panel — waveform + timer only */
     body {
+      flex-direction: row;
       align-items: center;
       justify-content: center;
-      gap: 12px;
+      gap: 10px;
+      padding: 0 14px;
+      overflow: hidden;
+    }
+
+    #view-recording {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+    }
+
+    #view-recording .waveform {
+      flex: 1;
+      height: 36px;
+      padding: 0;
+      gap: 2px;
+    }
+
+    #view-recording .timer {
+      font-size: 12px;
+      min-width: 36px;
+      text-align: right;
+    }
+
+    /* ── Processing view (transcribing/pasting) ── */
+    #view-processing {
+      display: none;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 0 14px;
+    }
+
+    #view-processing .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border-color, #ccc);
+      border-top-color: var(--accent, #333);
+      border-radius: 50%;
+      animation: dictate-spin 0.7s linear infinite;
+    }
+
+    @keyframes dictate-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    #view-processing .label {
+      font-size: 12px;
+      color: var(--text-muted, #666);
+    }
+
+    /* ── Setup Required view ── */
+    #view-setup {
+      display: none;
+      flex-direction: column;
+      gap: 14px;
+      padding: 20px 20px 16px;
+      width: 100%;
+    }
+
+    #view-setup h2 {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    #view-setup p {
+      color: var(--text-muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    #view-setup ol {
+      padding-left: 18px;
+      color: var(--text-muted);
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .setup-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .setup-actions .btn {
+      flex: 1;
+      font-size: 12px;
+      padding: 6px 10px;
     }
   </style>
 </head>
 <body>
-  <div class="row" style="gap:10px">
+
+  <!-- ── Normal recording view ── -->
+  <div id="view-recording">
     <span class="rec-dot"></span>
-    <div class="waveform" id="waveform">
-      <!-- bars injected by JS in Phase 6 -->
-    </div>
+    <div class="waveform" id="waveform"></div>
     <span class="timer" id="timer">0:00</span>
   </div>
+
+  <!-- ── Processing view (transcribing then pasting) ── -->
+  <div id="view-processing">
+    <div class="spinner"></div>
+    <span class="label">Transcribing…</span>
+  </div>
+
+  <!-- ── Setup Required view (shown when permissions are missing) ── -->
+  <div id="view-setup">
+    <div>
+      <h2 id="setup-title">Accessibility Required</h2>
+      <p id="setup-body" style="margin-top:6px">
+        Dictate needs Accessibility permission to paste text into other apps.
+      </p>
+    </div>
+    <ol id="setup-steps">
+      <li>Open System Settings &rarr; Privacy &amp; Security</li>
+      <li>Click Accessibility</li>
+      <li>Enable Liscribe (or Python)</li>
+      <li>Return here &mdash; Dictate will work straight away</li>
+    </ol>
+    <div class="setup-actions">
+      <button class="btn btn-primary" id="btn-open-settings">Open Settings &rarr;</button>
+      <button class="btn btn-ghost" id="btn-not-now">Not now</button>
+    </div>
+  </div>
+
+  <script>
+    const WAVEFORM_BAR_COUNT = 28;
+    const POLL_INTERVAL_MS = 80;
+
+    // ── Startup: detect setup_required query param ─────────────────────
+    (function checkSetupRequired() {
+      const params = new URLSearchParams(window.location.search);
+      const missing = params.get('setup_required');
+      if (!missing) return;
+
+      const perms = missing.split(',').filter(Boolean);
+      if (perms.length === 0) return;
+
+      document.getElementById('view-recording').style.display = 'none';
+      const setupView = document.getElementById('view-setup');
+      setupView.style.display = 'flex';
+      document.body.style.cssText =
+        'display:flex;flex-direction:column;overflow:hidden;';
+
+      const hasAccessibility = perms.indexOf('Accessibility') !== -1;
+      const hasInputMonitoring = perms.indexOf('Input Monitoring') !== -1;
+
+      const title = document.getElementById('setup-title');
+      const body = document.getElementById('setup-body');
+      const steps = document.getElementById('setup-steps');
+
+      if (hasAccessibility && hasInputMonitoring) {
+        title.textContent = 'Permissions Required';
+        body.textContent =
+          'Dictate needs Accessibility and Input Monitoring to paste text and listen for hotkeys.';
+        const items = [
+          'Open System Settings \u2192 Privacy & Security',
+          'Enable Accessibility for Liscribe',
+          'Enable Input Monitoring for Liscribe',
+          'Return here \u2014 Dictate will work straight away',
+        ];
+        while (steps.firstChild) steps.removeChild(steps.firstChild);
+        items.forEach(function(text) {
+          const li = document.createElement('li');
+          li.textContent = text;
+          steps.appendChild(li);
+        });
+      } else if (hasInputMonitoring) {
+        title.textContent = 'Input Monitoring Required';
+        body.textContent =
+          'Dictate needs Input Monitoring permission to listen for the hotkey trigger.';
+        const items = [
+          'Open System Settings \u2192 Privacy & Security',
+          'Click Input Monitoring',
+          'Enable Liscribe (or Python)',
+          'Return here \u2014 Dictate will work straight away',
+        ];
+        while (steps.firstChild) steps.removeChild(steps.firstChild);
+        items.forEach(function(text) {
+          const li = document.createElement('li');
+          li.textContent = text;
+          steps.appendChild(li);
+        });
+      }
+    })();
+
+    // ── Waveform setup ─────────────────────────────────────────────────
+    function buildWaveformBars() {
+      const wf = document.getElementById('waveform');
+      while (wf.firstChild) wf.removeChild(wf.firstChild);
+      for (var i = 0; i < WAVEFORM_BAR_COUNT; i++) {
+        var bar = document.createElement('div');
+        bar.className = 'waveform-bar';
+        bar.style.height = '3px';
+        wf.appendChild(bar);
+      }
+    }
+
+    function formatTime(secs) {
+      var s = Math.floor(secs);
+      var m = Math.floor(s / 60);
+      var ss = String(s % 60).padStart(2, '0');
+      return m + ':' + ss;
+    }
+
+    async function updateWaveform() {
+      try {
+        var levels = await pywebview.api.get_waveform(WAVEFORM_BAR_COUNT);
+        var bars = document.getElementById('waveform').querySelectorAll('.waveform-bar');
+        for (var i = 0; i < levels.length; i++) {
+          if (bars[i]) bars[i].style.height = Math.max(3, Math.round(levels[i] * 32)) + 'px';
+        }
+      } catch (e) { /* bridge not ready; degrade gracefully */ }
+    }
+
+    async function updateTimer() {
+      try {
+        var elapsed = await pywebview.api.get_elapsed();
+        document.getElementById('timer').textContent = formatTime(elapsed);
+      } catch (e) { /* bridge not ready; degrade gracefully */ }
+    }
+
+    async function updateStateView() {
+      try {
+        var state = await pywebview.api.get_state();
+        var recEl = document.getElementById('view-recording');
+        var procEl = document.getElementById('view-processing');
+        if (state === 'recording') {
+          recEl.style.display = 'flex';
+          procEl.style.display = 'none';
+        } else if (state === 'processing') {
+          recEl.style.display = 'none';
+          procEl.style.display = 'flex';
+        }
+      } catch (e) { /* bridge not ready */ }
+    }
+
+    var pollHandle = null;
+
+    function startPolling() {
+      if (pollHandle !== null) return;
+      pollHandle = setInterval(function() {
+        updateStateView();
+        updateWaveform();
+        updateTimer();
+      }, POLL_INTERVAL_MS);
+    }
+
+    // ── Init ───────────────────────────────────────────────────────────
+    window.addEventListener('pywebviewready', function() {
+      buildWaveformBars();
+      startPolling();
+    });
+
+    // Fallback: start polling after a short delay in case pywebviewready fired early.
+    setTimeout(function() {
+      if (pollHandle === null) {
+        buildWaveformBars();
+        startPolling();
+      }
+    }, 120);
+
+    // ── Setup Required buttons ─────────────────────────────────────────
+    document.getElementById('btn-not-now').addEventListener('click', function() {
+      window.close();
+    });
+
+    document.getElementById('btn-open-settings').addEventListener('click', function() {
+      var params = new URLSearchParams(window.location.search);
+      var missing = (params.get('setup_required') || '').split(',').filter(Boolean);
+      var pane = (missing.indexOf('Accessibility') !== -1)
+        ? 'com.apple.preference.security?Privacy_Accessibility'
+        : 'com.apple.preference.security?Privacy_ListenEvent';
+      window.location.href = 'x-apple.systempreferences:' + pane;
+    });
+  </script>
 </body>
 </html>

@@ -571,17 +571,17 @@ When speaker capture is enabled, Scribe records two streams independently — mi
 If Accessibility or Input Monitoring permission is missing when Dictate fires, the universal Setup Required modal is shown (see UI Sketches above). Dictate does not activate until the requirement is resolved.
 
 **Success criteria:**
-- [ ] Double-tap starts recording; double-tap again stops and pastes
-- [ ] Hold starts recording; release stops and pastes
-- [ ] Both modes work at any time — no mode setting needed
-- [ ] Floating panel appears near focused input, not at a fixed screen position
-- [ ] Panel does not steal focus from the target app
-- [ ] Text is pasted at cursor in the correct app
-- [ ] Auto-enter after paste respects global setting
-- [ ] No focused input → paste to clipboard + system notification
-- [ ] Missing Accessibility or Input Monitoring → Setup Required modal with "Help ↗" link to correct Help section; Dictate does not activate
-- [ ] Once permission is granted, next trigger works immediately without restart
-- [ ] Dictate model set globally in Settings → Models
+- [x] Double-tap starts recording; double-tap again stops and pastes
+- [x] Hold starts recording; release stops and pastes
+- [x] Both modes work at any time — no mode setting needed
+- [x] Floating panel appears near focused input, not at a fixed screen position
+- [x] Panel does not steal focus from the target app
+- [x] Text is pasted at cursor in the correct app
+- [x] Auto-enter after paste respects global setting
+- [x] No focused input → paste to clipboard + system notification
+- [x] Missing Accessibility or Input Monitoring → Setup Required modal with "Help ↗" link to correct Help section; Dictate does not activate
+- [x] Once permission is granted, next trigger works immediately without restart
+- [x] Dictate model set globally in Settings → Models
 
 ---
 
@@ -775,5 +775,5 @@ Add / Edit rule form (shown inline):
 
 ---
 
-*Status: In progress — Scribe and Transcribe verified per plan-v2 Phase 4–5. Dictate, Settings, Onboarding, Word Replacement pending.*
+*Status: In progress — Scribe, Transcribe, and Dictate verified per plan-v2 Phase 4–6. Settings, Onboarding, Word Replacement pending.*
 *Rubric, plan-v2, and architecture maintenance: see docs/starter.md and docs/reviewer.md.*

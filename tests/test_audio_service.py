@@ -123,11 +123,12 @@ class TestGetLevels:
     def test_returns_empty_when_not_recording(self, svc):
         assert svc.get_levels() == []
 
-    def test_returns_empty_when_no_chunks_yet(self, svc):
+    def test_returns_zeros_when_no_chunks_yet(self, svc):
         _mock_active_session(svc, "/tmp/rec.wav")
         svc._session._lock = threading.Lock()
         svc._session._mic_chunks = []
-        assert svc.get_levels() == []
+        result = svc.get_levels()
+        assert result == [0.0] * 30
 
 
 # ---------------------------------------------------------------------------
