@@ -378,29 +378,27 @@ class TestGetTranscriptionProgress:
 
 class TestOpenInTranscribe:
     def test_calls_callback_with_wav_path_when_provided(self):
-        on_open = MagicMock()
+        app_actions = MagicMock()
         ctrl = MagicMock()
         bridge = ScribeBridge(
             controller=ctrl,
             model=MagicMock(),
             audio=MagicMock(),
-            on_open_transcribe=on_open,
+            app_actions=app_actions,
         )
         bridge.open_in_transcribe("/tmp/recording.wav")
-        on_open.assert_called_once()
-        args = on_open.call_args[0]
-        assert args[0] == "/tmp/recording.wav"
+        app_actions.open_in_transcribe.assert_called_once_with("/tmp/recording.wav", None)
 
     def test_callback_receives_save_folder_when_passed(self):
-        on_open = MagicMock()
+        app_actions = MagicMock()
         bridge = ScribeBridge(
             controller=MagicMock(),
             model=MagicMock(),
             audio=MagicMock(),
-            on_open_transcribe=on_open,
+            app_actions=app_actions,
         )
         bridge.open_in_transcribe("/tmp/recording.wav", save_folder="/out")
-        on_open.assert_called_once_with("/tmp/recording.wav", "/out")
+        app_actions.open_in_transcribe.assert_called_once_with("/tmp/recording.wav", "/out")
 
 
 class TestOpenTranscript:
