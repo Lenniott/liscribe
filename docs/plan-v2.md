@@ -511,6 +511,7 @@ src/liscribe/ui/assets/sample.wav   — short (~5s) spoken sentence
 **New tests:**
 ```
 tests/test_onboarding_controller.py
+tests/test_onboarding_bridge.py
 ```
 
 **Done condition — all rubric Onboarding criteria met:**

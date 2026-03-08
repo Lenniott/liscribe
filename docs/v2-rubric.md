@@ -753,7 +753,7 @@ Add / Edit rule form (shown inline):
 - [x] User can navigate back to any previous step
 - [x] Completion marks onboarding done; subsequent launches go straight to menu bar
 - [x] "Replay setup guide" in Settings restarts the full flow
-- [ ] **Loading state:** Steps that wait on the backend (e.g. after Continue/Back) show an explicit loading state (e.g. spinner or “Loading…”) until the new step is ready; no blank or stale content during the wait.
+- [ ] **Loading state (Phase 8b):** Steps that wait on the backend (e.g. after Continue/Back) show an explicit loading state (e.g. spinner or “Loading…”) until the new step is ready; no blank or stale content during the wait.
 
 ---
 

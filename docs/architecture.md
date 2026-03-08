@@ -59,7 +59,7 @@ C4Component
         Component(transcribe, "TranscribePanel", "HTML + pywebview", "File picker, model list. TranscribeBridge, TranscribeController.")
         Component(dictate, "DictatePanel", "HTML + pywebview", "Waveform, timer. DictateBridge, DictateController.")
         Component(settings, "SettingsPanel", "HTML + pywebview", "Tabs: General, Models, Hotkeys, Replacements, Deps, Help. SettingsBridge.")
-        Component(onboarding, "OnboardingPanel", "HTML + pywebview", "Wizard, practice steps. OnboardingBridge.")
+        Component(onboarding, "OnboardingPanel", "HTML + pywebview", "Wizard, practice steps. OnboardingBridge, OnboardingController.")
     }
     Container_Ext(services, "Services", "Python", "AudioService, ModelService, ConfigService, HotkeyService")
     Rel(scribe, services, "Uses")
@@ -114,6 +114,7 @@ The JS bridge (`pywebview.api`) may not be injectable immediately on `window.loa
 **OnboardingPanel**
 - HTML/CSS view (stepped wizard)
 - OnboardingBridge
+- OnboardingController — tracks completion in config, blocks app until complete on first launch, exposes replay from Settings
 - calls real workflows for practice steps
 
 **Shared services (not panels):**
