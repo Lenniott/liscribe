@@ -370,6 +370,7 @@ class LiscribeApp(rumps.App):
             on_onboarding_complete=lambda: AppHelper.callAfter(self._close_onboarding_panel),
             on_open_help=lambda anchor: AppHelper.callAfter(self.open_settings_to_help, anchor or "permissions"),
             on_open_settings_general=lambda: AppHelper.callAfter(self._open_settings_from_onboarding),
+            on_relaunch=lambda: AppHelper.callAfter(self._schedule_restart),
         )
 
         # name → open webview.Window (None-entry means window was closed)

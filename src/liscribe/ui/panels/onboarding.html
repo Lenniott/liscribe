@@ -32,7 +32,16 @@
     <div class="step-body">
       <h2>Required permissions</h2>
       <p>Liscribe needs the following access to work. Grant each one in System Settings, then return here.</p>
+      <p class="perm-named-python-hint">ℹ️ In System Settings, Liscribe currently appears as <strong>Terminal</strong> or <strong>Python</strong> in the privacy list. Look for one of those when granting access below.</p>
       <div id="perm-list"></div>
+      <div id="perm-relaunch" style="display:none;" class="perm-relaunch-box">
+        <p>✓ All permissions granted — nice!</p>
+        <p style="font-size:12px;opacity:0.7;">Permissions sometimes need a relaunch to fully take effect.</p>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button type="button" class="btn btn-primary" id="btn-relaunch-app">Relaunch Liscribe →</button>
+          <button type="button" class="btn btn-ghost" id="btn-skip-relaunch">Continue without relaunch</button>
+        </div>
+      </div>
     </div>
     <div class="step-nav">
       <div class="left">
@@ -262,9 +271,25 @@
     });
   }
 
+  // Sticky granted set — once green, stays green for the session.
+  var grantedSet = new Set();
+
+  var PERM_INSTRUCTIONS = {
+    microphone: 'macOS will prompt automatically — click Allow when it appears.',
+    accessibility: 'Open Settings → Privacy & Security → Accessibility → find Terminal or Python → enable.',
+    input_monitoring: 'Open Settings → Privacy & Security → Input Monitoring → find Terminal or Python → enable.'
+  };
+
   function renderPermRow(type, label, granted) {
     var row = document.createElement('div');
     row.className = 'perm-row';
+    row.setAttribute('data-perm', type);
+
+    var topLine = document.createElement('div');
+    topLine.style.display = 'flex';
+    topLine.style.alignItems = 'center';
+    topLine.style.justifyContent = 'space-between';
+
     var name = document.createElement('span');
     name.textContent = label;
     var right = document.createElement('span');
@@ -281,21 +306,38 @@
     btn.addEventListener('click', function() { pywebview.api.request_permission(type); });
     right.appendChild(status);
     right.appendChild(btn);
-    row.appendChild(name);
-    row.appendChild(right);
+    topLine.appendChild(name);
+    topLine.appendChild(right);
+
+    var hint = document.createElement('div');
+    hint.className = 'perm-hint';
+    hint.textContent = PERM_INSTRUCTIONS[type] || '';
+
+    row.appendChild(topLine);
+    row.appendChild(hint);
     return row;
   }
 
   function updatePermissionsStep(step) {
     var perms = step.permissions || {};
+    // Add newly granted permissions to the sticky set.
+    ['microphone', 'accessibility', 'input_monitoring'].forEach(function(type) {
+      if (perms[type]) grantedSet.add(type);
+    });
+
     var list = el('perm-list');
     clearChildren(list);
     var labels = { microphone: 'Microphone', accessibility: 'Accessibility', input_monitoring: 'Input Monitoring' };
     ['microphone', 'accessibility', 'input_monitoring'].forEach(function(type) {
-      list.appendChild(renderPermRow(type, labels[type], !!perms[type]));
+      list.appendChild(renderPermRow(type, labels[type], grantedSet.has(type)));
     });
-    var allGranted = perms.microphone && perms.accessibility && perms.input_monitoring;
+    var allGranted = grantedSet.has('microphone') && grantedSet.has('accessibility') && grantedSet.has('input_monitoring');
     el('btn-permissions-next').disabled = !allGranted;
+    // Show relaunch box once all three are granted.
+    var relaunchBox = el('perm-relaunch');
+    if (relaunchBox) {
+      relaunchBox.style.display = allGranted ? '' : 'none';
+    }
   }
 
   function pollPermissionsAndUpdate() {
@@ -307,7 +349,20 @@
     });
   }
 
+  function advanceFromPermissions() {
+    if (navigating) return;
+    navigating = true;
+    pywebview.api.advance().then(function(result) {
+      if (result && result.ok) {
+        refreshStep().then(bindStepHandlers);
+      }
+    }).catch(function(e) {
+      console.error('advance:', e);
+    }).finally(function() { navigating = false; });
+  }
+
   function bindPermissions() {
+    grantedSet = new Set();
     getStep().then(function(step) {
       updatePermissionsStep(step);
       setTimeout(pollPermissionsAndUpdate, PERM_POLL_MS);
@@ -321,17 +376,17 @@
         console.error('back:', e);
       }).finally(function() { navigating = false; });
     });
-    el('btn-permissions-next').addEventListener('click', function() {
-      if (navigating) return;
-      navigating = true;
-      pywebview.api.advance().then(function(result) {
-        if (result && result.ok) {
-          refreshStep().then(bindStepHandlers);
-        }
-      }).catch(function(e) {
-        console.error('advance:', e);
-      }).finally(function() { navigating = false; });
-    });
+    el('btn-permissions-next').addEventListener('click', advanceFromPermissions);
+    var relaunchBtn = el('btn-relaunch-app');
+    if (relaunchBtn) {
+      relaunchBtn.addEventListener('click', function() {
+        pywebview.api.relaunch_app().catch(function(e) { console.error('relaunch:', e); });
+      });
+    }
+    var skipBtn = el('btn-skip-relaunch');
+    if (skipBtn) {
+      skipBtn.addEventListener('click', advanceFromPermissions);
+    }
   }
 
   function renderModelRow(m) {

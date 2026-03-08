@@ -543,38 +543,27 @@ tests/test_onboarding_bridge.py
 
 ## Phase 9 — Bundle + Install
 
-**Goal:** `./install.sh` on a fresh Mac produces a working `.app` in
-`/Applications/Liscribe.app`. No terminal required after that.
+**Goal:** Terminal-only install and alias. `./install.sh` checks deps, creates venv, adds `liscribe` alias to `~/.zshrc`. User runs `liscribe` from terminal to start the app.
 
-**Files to write:**
+**Files:**
 
 `install.sh`
-- Check Python 3.10+
-- Check/install Homebrew deps: portaudio, blackhole-2ch (optional)
-- Create venv
-- `pip install -e .`
-- `pip install py2app`
-- `python setup.py py2app`
-- Copy `.app` to `/Applications`
-- Open Liscribe on first launch
+- Check Python 3.10+, Homebrew, portaudio (required), blackhole-2ch (optional); exit with clear one-line messages if missing.
+- Create `.venv` in repo; `pip install -e .` (quiet).
+- Clean existing liscribe lines from `~/.zshrc`; append `alias liscribe='<repo>/.venv/bin/python <repo>/src/liscribe/app.py'`.
+- Print permissions hint: Accessibility, Input Monitoring, Microphone for Terminal (or Python).
 
-`setup.py` (py2app config)
-- Entry point: `src/liscribe/app.py`
-- Include: all `ui/` assets, `sample.wav`
-- Exclude: test files, `__pycache__`
+`setup.py` (pip only)
+- Package data: `ui/panels`, `ui/assets` (including `sample.wav`). Used by `pip install -e .`.
 
 `uninstall.sh`
-- Remove `/Applications/Liscribe.app`
-- Remove `~/.config/liscribe/`
-- Remove model cache
-- Remove login item if set
+- Remove all liscribe-related lines from `~/.zshrc`.
+- Remove `~/.config/liscribe/`, `~/.cache/liscribe/`, login item. Optionally remove `/Applications/Liscribe.app` if present.
 
 **Done condition:**
-- [ ] `./install.sh` runs to completion on a clean venv
-- [ ] `/Applications/Liscribe.app` opens without terminal
-- [ ] Menu bar icon appears on launch
-- [ ] Gatekeeper "Open Anyway" is the only friction for new users
-- [ ] `./uninstall.sh` removes all traces
+- [x] `./install.sh` runs to completion
+- [x] Alias is in `~/.zshrc`; running `liscribe` (after `source ~/.zshrc`) starts the app
+- [x] `./uninstall.sh` removes alias, config, cache
 
 ---
 

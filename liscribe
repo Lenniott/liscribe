@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Wrapper to run Liscribe. Use this script by full path from Shortcuts or other automation
+# (they often don't load ~/.zshrc, so the alias isn't available).
+set -e
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+while [[ -L "$SCRIPT_PATH" ]]; do
+  SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+  SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+  [[ "$SCRIPT_PATH" != /* ]] && SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH"
+done
+REPO_ROOT="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+exec "$REPO_ROOT/.venv/bin/python" "$REPO_ROOT/src/liscribe/app.py" "$@"

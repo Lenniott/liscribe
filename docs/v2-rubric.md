@@ -17,7 +17,7 @@
 | Audio | sounddevice + PortAudio | Unchanged from v1 |
 | Transcription | faster-whisper | Unchanged from v1 |
 | Speaker capture | BlackHole (brew) | Unchanged from v1 |
-| Distribution | py2app .app bundle + install script | git clone → ./install.sh → .app in Applications |
+| Distribution | Terminal + alias in .zshrc | git clone → ./install.sh → run liscribe from terminal |
 | Config storage | JSON at ~/.config/liscribe/config.json | Unchanged from v1 |
 | Developer account | Not required | Unsigned .app; users click "Open Anyway" in Gatekeeper once |
 

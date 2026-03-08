@@ -18,6 +18,9 @@ UI_PREFS_PATH = Path(_config.CONFIG_DIR) / "ui_prefs.json"
 START_ON_LOGIN_KEY = "start_on_login"
 
 
+_LAUNCHD_PLIST = Path.home() / "Library/LaunchAgents/com.liscribe.app.plist"
+
+
 def _get_app_bundle_path() -> Path | None:
     """If we are running inside a .app bundle, return its path; else None."""
     exe = Path(sys.executable).resolve()
@@ -32,58 +35,33 @@ def _get_app_bundle_path() -> Path | None:
 
 
 def _set_login_item(enabled: bool) -> None:
-    """Register or remove Liscribe as a login item on macOS. No-op if not inside .app."""
-    app_path = _get_app_bundle_path()
-    if app_path is None:
-        logger.info(
-            "Start on Login only works when running the installed .app; not changing login items"
-        )
+    """Enable or disable Start on Login via the launchd plist written by install.sh."""
+    if not _LAUNCHD_PLIST.exists():
+        logger.info("No launchd plist found; Start on Login has no effect until install.sh is run")
         return
-    path_str = str(app_path.resolve())
-    app_name = app_path.stem  # e.g. "Liscribe" from "Liscribe.app"
+    cmd = [
+        "/usr/libexec/PlistBuddy",
+        "-c",
+        f"Set :RunAtLoad {'true' if enabled else 'false'}",
+        str(_LAUNCHD_PLIST),
+    ]
+    subprocess.run(cmd, check=False, capture_output=True)
+    subprocess.run(["launchctl", "unload", str(_LAUNCHD_PLIST)], check=False, capture_output=True)
     if enabled:
-        # Use POSIX file so System Events gets a proper file reference (required on some macOS versions).
-        script = (
-            f'tell application "System Events" to make login item at end '
-            f'with properties {{path:POSIX file "{path_str}", hidden:false}}'
-        )
-        try:
-            result = subprocess.run(
-                ["osascript", "-e", script],
-                capture_output=True,
-                text=True,
-                timeout=5,
-                check=False,
-            )
-            if result.returncode != 0:
-                logger.warning(
-                    "Could not add login item: osascript exit %s stderr=%s",
-                    result.returncode,
-                    (result.stderr or result.stdout or "").strip() or "(none)",
-                )
-        except Exception as exc:
-            logger.warning("Could not add login item: %s", exc)
-    else:
-        try:
-            result = subprocess.run(
-                [
-                    "osascript",
-                    "-e",
-                    f'tell application "System Events" to delete login item "{app_name}"',
-                ],
-                capture_output=True,
-                text=True,
-                timeout=5,
-                check=False,
-            )
-            if result.returncode != 0:
-                logger.warning(
-                    "Could not remove login item: osascript exit %s stderr=%s",
-                    result.returncode,
-                    (result.stderr or result.stdout or "").strip() or "(none)",
-                )
-        except Exception as exc:
-            logger.warning("Could not remove login item: %s", exc)
+        subprocess.run(["launchctl", "load", str(_LAUNCHD_PLIST)], check=False, capture_output=True)
+
+
+def _get_login_item_from_plist() -> bool:
+    """Read RunAtLoad from the launchd plist; returns False if plist missing or unreadable."""
+    if not _LAUNCHD_PLIST.exists():
+        return False
+    try:
+        import plistlib
+        data = plistlib.loads(_LAUNCHD_PLIST.read_bytes())
+        return bool(data.get("RunAtLoad", False))
+    except Exception:
+        logger.debug("Could not read RunAtLoad from launchd plist", exc_info=True)
+        return False
 
 
 class ConfigService:
@@ -350,7 +328,13 @@ class ConfigService:
 
     @property
     def start_on_login(self) -> bool:
-        """Whether to start Liscribe on user login. Stored in ui_prefs.json."""
+        """Whether to start Liscribe on user login.
+        Primary source: RunAtLoad in the launchd plist (written by install.sh).
+        Falls back to ui_prefs.json for backwards compatibility.
+        """
+        # Prefer the ground truth in the plist when it exists.
+        if _LAUNCHD_PLIST.exists():
+            return _get_login_item_from_plist()
         try:
             if UI_PREFS_PATH.exists():
                 data = json.loads(UI_PREFS_PATH.read_text(encoding="utf-8"))

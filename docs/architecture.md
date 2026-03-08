@@ -46,6 +46,9 @@ The menu bar item is controlled in `app.py`. When available (macOS 11+), the app
 **Process display name**  
 On launch, the app sets the process display name (e.g. "Liscribe") via the macOS ApplicationServices API so CMD+Tab and the Dock show the app name instead of "Python" when run as a script.
 
+**Distribution**  
+Install via `./install.sh` (venv + alias in `~/.zshrc`). Run `liscribe` from the terminal to start the app. Uninstall via `./uninstall.sh` (removes alias, config, cache).
+
 ---
 
 ## Level 3 — Component (Panel Layer)

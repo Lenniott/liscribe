@@ -36,6 +36,7 @@ class OnboardingBridge:
         on_onboarding_complete: Callable[[], None],
         on_open_help: Callable[[str], None] | None = None,
         on_open_settings_general: Callable[[], None] | None = None,
+        on_relaunch: Callable[[], None] | None = None,
     ) -> None:
         self._controller = controller
         self._on_open_scribe = on_open_scribe
@@ -43,6 +44,7 @@ class OnboardingBridge:
         self._on_onboarding_complete = on_onboarding_complete
         self._on_open_help = on_open_help
         self._on_open_settings_general = on_open_settings_general
+        self._on_relaunch = on_relaunch
         self._window: Any = None
         self._download_state: dict[str, Any] = {}
         self._download_lock = threading.Lock()
@@ -186,3 +188,8 @@ class OnboardingBridge:
         """Close onboarding and open Settings with the General tab selected."""
         if self._on_open_settings_general:
             self._on_open_settings_general()
+
+    def relaunch_app(self) -> None:
+        """Relaunch the app so newly-granted permissions take effect."""
+        if self._on_relaunch:
+            self._on_relaunch()
