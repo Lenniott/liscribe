@@ -73,11 +73,18 @@ If you want to record the speaker side of calls, you also need BlackHole 2ch and
 
 ## Install
 
+**Get the repo and open it in Terminal.** Either:
+
+- **Git:** `git clone <repo-url>` (e.g. your fork), then `cd liscribe`
+- **Download:** Download the repo as a ZIP from GitHub, unzip it, then open that folder in Terminal. You can right‑click the folder in Finder and choose **Open in Terminal** (or **Services → New Terminal at Folder**), or right‑click while holding Option to **Copy “folder” as Pathname**, then in Terminal run `cd ` and paste. Or type the path from scratch, e.g. `cd ~/Downloads/liscribe-main`
+
+From the liscribe folder, run:
+
 ```bash
 bash install.sh
 ```
 
-Run this from the Liscribe directory after cloning the repo. It will:
+The script will:
 
 - Check for Homebrew and install it if missing
 - Install Python dependencies into a virtual environment
@@ -106,7 +113,7 @@ The first time you run it, an onboarding wizard walks you through granting permi
 
 ## Speaker capture setup
 
-Speaker capture records both your microphone and the other side of the call (system audio). To do that, Liscribe needs a **multi-output device** that sends audio to BlackHole (for recording) and to your headphones or speakers (so you can hear the call). You create this once in macOS Audio MIDI Setup; after that, when you are on a call you just set your Mac’s output to that device.
+Speaker capture records both your microphone and the other side of the call (system audio). To do that, Liscribe needs a **multi-output device** that sends audio to BlackHole (for recording) and to your headphones or speakers (so you can hear the call). You create this once in macOS Audio MIDI Setup; after that, when you are on a call you set the **meeting app’s** speaker/output (e.g. in Google Meet or Teams) to that device.
 
 ### 1. Install BlackHole and open Audio MIDI Setup
 
@@ -148,7 +155,7 @@ In Liscribe, open **Settings → Dependencies** and set **Speaker output device*
 
 ### 5. When you are on a call
 
-Before or at the start of the call, set your Mac’s **sound output** to your multi-output device (e.g. Liscribe). You can do that from the volume menu in the menu bar or in **System Settings → Sound → Output**. Then start your Scribe recording and turn on **Speaker capture**. Liscribe will switch the system output to your multi-output device if it is not already selected, so you hear the call through the devices you added (e.g. headphones) and the call audio is recorded via BlackHole.
+In your call app (e.g. Google Meet or Teams), set the meeting’s **speaker/output** to your multi-output device (e.g. Liscribe). Then start your Scribe recording and turn on **Speaker capture**. Liscribe will switch the system output to your multi-output device if it is not already selected, so you hear the call through the devices you added (e.g. headphones) and the call audio is recorded via BlackHole.
 
 ---
 
