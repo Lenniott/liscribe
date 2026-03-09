@@ -188,7 +188,11 @@ h3 { font-size: 13px; font-weight: 600; }
 .btn-danger:hover:not(:disabled) { opacity: 0.85; }
 
 /* Ghost / Secondary — neutral, subtle */
-.btn-ghost     { background: var(--bg-elevated); color: var(--text); }
+.btn-ghost     { 
+  background: var(--bg-elevated); 
+  color: var(--text); 
+  min-width: 20px;
+}
 .btn-secondary { 
   background: var(--bg-elevated);
   color: var(--text);
@@ -688,6 +692,8 @@ input[type="checkbox"] {
 
 .error-msg.visible { display: block; }
 
+.text-danger { color: var(--accent); font-size: 12px; }
+
 
 /* ── § HEADER-CLOSE ────────────────────────────────────────── */
 /* ✕ dismiss button shown conditionally in panel headers       */
@@ -973,10 +979,10 @@ body.panel-dictate {
 
 .model-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
 .model-table th,
-.model-table td { padding: 8px 12px; text-align: left; font-size: 13px; }
+.model-table td { padding: 8px 12px; text-align: left; font-size: 13px;  }
 .model-table th { color: var(--text-muted); font-weight: 600; }
 .model-table tr { border-bottom: 1px solid var(--border); }
-
+.td-actions { display:flex; flex-wrap: wrap; gap: 4px; }
 
 /* ── § SETTINGS-HOTKEYS ────────────────────────────────────── */
 

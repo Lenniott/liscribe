@@ -16,10 +16,10 @@ from typing import TYPE_CHECKING, Any, Callable
 import webview
 
 from liscribe.services import permissions_service as _perms
+from liscribe.services.config_service import ConfigService
 
 if TYPE_CHECKING:
     from liscribe.services.audio_service import AudioService
-    from liscribe.services.config_service import ConfigService
     from liscribe.services.model_service import ModelService
 
 logger = logging.getLogger(__name__)
@@ -276,3 +276,103 @@ class SettingsBridge:
         from liscribe import platform_setup
         ok, msg = platform_setup.check_multi_output_device(device_name)
         return {"installed": ok, "message": msg}
+
+    # ------------------------------------------------------------------
+    # Replacements (Phase 10)
+    # ------------------------------------------------------------------
+
+    def _rule_is_default(self, rule: dict[str, Any]) -> bool:
+        """True if rule matches one of the built-in default rules."""
+        for default in ConfigService.DEFAULT_REPLACEMENT_RULES:
+            if (
+                rule.get("trigger") == default.get("trigger")
+                and rule.get("type") == default.get("type")
+                and rule.get("scope") == default.get("scope")
+            ):
+                if default.get("type") == "wrap":
+                    if rule.get("prefix") == default.get("prefix") and rule.get("suffix") == default.get("suffix"):
+                        return True
+                else:
+                    if rule.get("output") == default.get("output"):
+                        return True
+        return False
+
+    def get_replacements(self) -> list[dict[str, Any]]:
+        """Return all replacement rules, each with is_default set."""
+        rules = [dict(r) for r in self._config.replacement_rules]
+        for r in rules:
+            r["is_default"] = self._rule_is_default(r)
+        return rules
+
+    def add_replacement(
+        self,
+        trigger: str,
+        type: str,  # noqa: A002
+        output: str = "",
+        prefix: str = "",
+        suffix: str = "",
+        scope: str = "both",
+    ) -> dict[str, Any]:
+        """Add a replacement rule. Returns {ok: True, rule} or {ok: False, error}."""
+        trigger = (trigger or "").strip()
+        if not trigger:
+            return {"ok": False, "error": "Trigger cannot be empty"}
+        if type in ("simple", "newline") and not (output or "").strip():
+            return {"ok": False, "error": "Output cannot be empty for this type"}
+        rule: dict[str, Any] = {
+            "trigger": trigger,
+            "type": type,
+            "output": (output or "").strip(),
+            "scope": scope or "both",
+        }
+        if type == "wrap":
+            rule["prefix"] = prefix or ""
+            rule["suffix"] = suffix or ""
+        rules = self._config.replacement_rules
+        rules = list(rules)
+        rules.append(rule)
+        self._config.replacement_rules = rules
+        rule["is_default"] = self._rule_is_default(rule)
+        return {"ok": True, "rule": rule}
+
+    def update_replacement(
+        self,
+        index: int,
+        trigger: str,
+        type: str,  # noqa: A002
+        output: str = "",
+        prefix: str = "",
+        suffix: str = "",
+        scope: str = "both",
+    ) -> dict[str, Any]:
+        """Update rule at index. Returns {ok: True, rule} or {ok: False, error}."""
+        trigger = (trigger or "").strip()
+        if not trigger:
+            return {"ok": False, "error": "Trigger cannot be empty"}
+        if type in ("simple", "newline") and not (output or "").strip():
+            return {"ok": False, "error": "Output cannot be empty for this type"}
+        rules = list(self._config.replacement_rules)
+        if index < 0 or index >= len(rules):
+            return {"ok": False, "error": "Invalid index"}
+        rule = {
+            "trigger": trigger,
+            "type": type,
+            "output": (output or "").strip(),
+            "scope": scope or "both",
+        }
+        if type == "wrap":
+            rule["prefix"] = prefix or ""
+            rule["suffix"] = suffix or ""
+        rules[index] = rule
+        self._config.replacement_rules = rules
+        rule["is_default"] = self._rule_is_default(rule)
+        return {"ok": True, "rule": rule}
+
+    def delete_replacement(self, index: int) -> dict[str, Any]:
+        """Delete rule at index. Returns {ok: True} or {ok: False, error}."""
+        rules = list(self._config.replacement_rules)
+        if index < 0 or index >= len(rules):
+            return {"ok": False, "error": "Invalid index"}
+        rules.pop(index)
+        self._config.replacement_rules = rules
+        return {"ok": True}

@@ -310,6 +310,40 @@ class ConfigService:
         self.set("scribe_models", list(models))
 
     # ------------------------------------------------------------------
+    # Word replacement rules (Phase 10)
+    # ------------------------------------------------------------------
+
+    CONFIG_KEY_REPLACEMENT_RULES = "replacement_rules"
+
+    DEFAULT_REPLACEMENT_RULES: list[dict[str, Any]] = [
+        # hashtag Monday -> #monday
+        {"trigger": "hashtag", "type": "wrap", "prefix": "#", "suffix": "", "scope": "both", "transform": "lower"},
+        # "to do" -> [ ]
+        {"trigger": "to do", "type": "simple", "output": "[ ]", "scope": "both"},
+        {"trigger": "open bracket", "type": "simple", "output": "[", "scope": "both"},
+        {"trigger": "close bracket", "type": "simple", "output": "]", "scope": "both"},
+        {"trigger": "dash", "type": "simple", "output": "-", "scope": "both"},
+        # "new line" -> newline
+        {"trigger": "new line", "type": "newline", "output": "\n", "scope": "both"},
+    ]
+
+    @property
+    def replacement_rules(self) -> list[dict[str, Any]]:
+        """Replacement rules for word substitution. Seeds defaults if key absent."""
+        key = self.CONFIG_KEY_REPLACEMENT_RULES
+        if key not in self._values:
+            self._values[key] = [dict(r) for r in self.DEFAULT_REPLACEMENT_RULES]
+            _config.save_config(self._values)
+        raw = self._values[key]
+        if not isinstance(raw, list):
+            return [dict(r) for r in self.DEFAULT_REPLACEMENT_RULES]
+        return [dict(r) for r in raw]
+
+    @replacement_rules.setter
+    def replacement_rules(self, rules: list[dict[str, Any]]) -> None:
+        self.set(self.CONFIG_KEY_REPLACEMENT_RULES, list(rules))
+
+    # ------------------------------------------------------------------
     # Onboarding (Phase 8 — first-launch wizard completion)
     # ------------------------------------------------------------------
 

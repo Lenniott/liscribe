@@ -43,6 +43,7 @@ def config_svc():
     svc.scribe_models = ["base"]
     svc.whisper_model = "base"
     svc.dictation_model = "base"
+    svc.replacement_rules = []
     return svc
 
 
@@ -212,3 +213,87 @@ class TestGetAppVersion:
         result = bridge.get_app_version()
         assert isinstance(result, str)
         assert len(result) >= 1
+
+
+# ---------------------------------------------------------------------------
+# get_replacements() / add_replacement() / update_replacement() / delete_replacement() (Phase 10)
+# ---------------------------------------------------------------------------
+
+
+class TestGetReplacements:
+    def test_returns_list_with_is_default_flag(self, bridge, config_svc):
+        config_svc.replacement_rules = [
+            {"trigger": "hashtag", "type": "wrap", "prefix": "#", "suffix": "", "scope": "both", "transform": "lower"},
+        ]
+        result = bridge.get_replacements()
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["trigger"] == "hashtag"
+        assert "is_default" in result[0]
+        assert result[0]["is_default"] is True
+
+    def test_user_rule_has_is_default_false(self, bridge, config_svc):
+        config_svc.replacement_rules = [
+            {"trigger": "custom", "type": "simple", "output": "x", "scope": "both"},
+        ]
+        result = bridge.get_replacements()
+        assert result[0]["is_default"] is False
+
+
+class TestAddReplacement:
+    def test_empty_trigger_returns_error(self, bridge):
+        result = bridge.add_replacement("", "simple", "#", scope="both")
+        assert result.get("ok") is False
+        assert "error" in result
+        assert "trigger" in result["error"].lower()
+
+    def test_empty_output_for_simple_returns_error(self, bridge):
+        result = bridge.add_replacement("x", "simple", "", scope="both")
+        assert result.get("ok") is False
+        assert "error" in result
+
+    def test_success_appends_rule_and_persists(self, bridge, config_svc):
+        config_svc.replacement_rules = []
+        result = bridge.add_replacement("hashtag", "simple", "#", scope="both")
+        assert result.get("ok") is True
+        assert "rule" in result
+        assert result["rule"]["trigger"] == "hashtag"
+        assert config_svc.replacement_rules == [result["rule"]]
+
+
+class TestUpdateReplacement:
+    def test_empty_trigger_returns_error(self, bridge, config_svc):
+        config_svc.replacement_rules = [{"trigger": "x", "type": "simple", "output": "y", "scope": "both"}]
+        result = bridge.update_replacement(0, "", "simple", "y", scope="both")
+        assert result.get("ok") is False
+        assert "error" in result
+
+    def test_invalid_index_returns_error(self, bridge, config_svc):
+        config_svc.replacement_rules = []
+        result = bridge.update_replacement(0, "x", "simple", "y", scope="both")
+        assert result.get("ok") is False
+        assert "error" in result
+
+    def test_success_updates_rule(self, bridge, config_svc):
+        config_svc.replacement_rules = [
+            {"trigger": "old", "type": "simple", "output": "o", "scope": "both"},
+        ]
+        result = bridge.update_replacement(0, "new", "simple", "n", scope="both")
+        assert result.get("ok") is True
+        assert config_svc.replacement_rules[0]["trigger"] == "new"
+        assert config_svc.replacement_rules[0]["output"] == "n"
+
+
+class TestDeleteReplacement:
+    def test_invalid_index_returns_error(self, bridge, config_svc):
+        config_svc.replacement_rules = []
+        result = bridge.delete_replacement(0)
+        assert result.get("ok") is False
+
+    def test_success_removes_rule(self, bridge, config_svc):
+        config_svc.replacement_rules = [
+            {"trigger": "a", "type": "simple", "output": "x", "scope": "both"},
+        ]
+        result = bridge.delete_replacement(0)
+        assert result.get("ok") is True
+        assert len(config_svc.replacement_rules) == 0

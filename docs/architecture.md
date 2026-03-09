@@ -29,7 +29,7 @@ C4Container
         Container(menubar, "Menu Bar", "rumps", "Dropdown, hotkeys (Scribe, Dictate, Transcribe, Settings)")
         Container(panels, "Panel Layer", "pywebview", "ScribePanel, TranscribePanel, DictatePanel, SettingsPanel, OnboardingPanel")
         Container(services, "Services", "Python", "AudioService, ModelService, ConfigService, HotkeyService")
-        Container(engine, "Engine", "Python", "recorder, transcriber, output, notes, transcribe_worker, waveform, config, platform_setup")
+        Container(engine, "Engine", "Python", "recorder, transcriber, output, notes, transcribe_worker, waveform, config, platform_setup, replacements")
     }
     Rel(user, menubar, "Uses")
     Rel(menubar, panels, "Opens")

@@ -111,15 +111,46 @@
         </div>
       </div>
 
-      <!-- Replacements: stub until Phase 10; full CRUD then. -->
       <div id="pane-replacements" class="settings-tab-pane">
         <div class="section-label">Word Replacements</div>
-        <p class="text-muted mb-12">Manage trigger words for Scribe, Transcribe, and Dictate. Full editing in Phase 10.</p>
+        <p class="text-muted mb-12">Substitute spoken trigger words with defined output in Scribe, Transcribe, and Dictate.</p>
         <table class="replacements-table">
-          <thead><tr><th>Trigger</th><th>Output</th><th>Type</th><th>Scope</th></tr></thead>
+          <thead><tr><th>Trigger</th><th>Output</th><th>Type</th><th>Scope</th><th></th></tr></thead>
           <tbody id="replacements-tbody"></tbody>
         </table>
-        <button type="button" class="btn btn-secondary" id="add-replacement" style="display:none;">+ Add replacement</button>
+        <button type="button" class="btn btn-secondary" id="add-replacement">+ Add replacement</button>
+        <div id="replacement-form" class="replacement-form mt-16" style="display:none;">
+          <div class="section-label">Trigger word</div>
+          <input type="text" id="replacement-trigger" class="input-text mb-8" placeholder="e.g. hashtag" />
+          <p id="replacement-trigger-error" class="text-danger text-sm mb-8" style="display:none;"></p>
+          <div class="section-label">Type</div>
+          <div class="form-row radio-group mb-8">
+            <label><input type="radio" name="replacement-type" value="simple" checked> Simple</label>
+            <label><input type="radio" name="replacement-type" value="newline"> Newline</label>
+            <label><input type="radio" name="replacement-type" value="wrap"> Wrap</label>
+          </div>
+          <div id="replacement-output-row">
+            <div class="section-label">Output</div>
+            <input type="text" id="replacement-output" class="input-text mb-8" placeholder="e.g. #" />
+            <p id="replacement-output-error" class="text-danger text-sm mb-8" style="display:none;"></p>
+          </div>
+          <div id="replacement-wrap-row" style="display:none;">
+            <div class="section-label">Prefix</div>
+            <input type="text" id="replacement-prefix" class="input-text mb-8" placeholder="e.g. **" />
+            <div class="section-label">Suffix</div>
+            <input type="text" id="replacement-suffix" class="input-text mb-8" placeholder="e.g. **" />
+          </div>
+          <div class="section-label">Scope</div>
+          <div class="form-row radio-group mb-12">
+            <label><input type="radio" name="replacement-scope" value="transcripts"> Transcripts</label>
+            <label><input type="radio" name="replacement-scope" value="dictate"> Dictate</label>
+            <label><input type="radio" name="replacement-scope" value="both" checked> Both</label>
+          </div>
+          <div class="form-row">
+            <button type="button" class="btn btn-primary" id="replacement-save">Save</button>
+            <button type="button" class="btn btn-secondary" id="replacement-cancel">Cancel</button>
+          </div>
+        </div>
       </div>
 
       <div id="pane-deps" class="settings-tab-pane">
@@ -206,6 +237,7 @@
     });
     if (tabId === 'deps') refreshPermissions();
     if (tabId === 'models') refreshModels();
+    if (tabId === 'replacements') refreshReplacements();
   }
 
   async function loadConfig() {
@@ -355,6 +387,157 @@
       refreshModels();
     } catch (e) { console.error('removeModel:', e); }
   }
+
+  let replacements = [];
+  let replacementEditIndex = -1;
+
+  function displayOutputForRule(rule) {
+    if (rule.type === 'newline') return '↵';
+    if (rule.type === 'wrap') return (rule.prefix || '') + '…' + (rule.suffix || '');
+    return rule.output || '';
+  }
+
+  function scopeLabel(scope) {
+    if (scope === 'transcripts') return 'Transcripts';
+    if (scope === 'dictate') return 'Dictate';
+    return 'Both';
+  }
+
+  async function refreshReplacements() {
+    try {
+      replacements = await pywebview.api.get_replacements() || [];
+      const tbody = el('replacements-tbody');
+      tbody.innerHTML = '';
+      replacements.forEach(function(r, idx) {
+        const tr = document.createElement('tr');
+        const tdTrigger = document.createElement('td');
+        tdTrigger.textContent = r.trigger || '';
+        tr.appendChild(tdTrigger);
+        const tdOutput = document.createElement('td');
+        tdOutput.textContent = displayOutputForRule(r);
+        tr.appendChild(tdOutput);
+        const tdType = document.createElement('td');
+        tdType.textContent = r.type === 'wrap' ? 'Wrap' : (r.type === 'newline' ? 'Newline' : 'Simple');
+        tr.appendChild(tdType);
+        const tdScope = document.createElement('td');
+        tdScope.textContent = scopeLabel(r.scope);
+        tr.appendChild(tdScope);
+        const tdActions = document.createElement('td');
+        tdActions.className = 'td-actions'
+        const btnEdit = document.createElement('button');
+        btnEdit.type = 'button';
+        btnEdit.className = 'btn btn-ghost';
+        btnEdit.textContent = 'Edit';
+        btnEdit.dataset.index = String(idx);
+        btnEdit.addEventListener('click', function() { showReplacementForm(parseInt(this.dataset.index, 10)); });
+        const btnDel = document.createElement('button');
+        btnDel.type = 'button';
+        btnDel.className = 'btn btn-ghost btn-danger';
+        btnDel.textContent = 'Delete';
+        btnDel.dataset.index = String(idx);
+        btnDel.dataset.isDefault = r.is_default ? '1' : '0';
+        btnDel.addEventListener('click', function() { deleteReplacement(parseInt(this.dataset.index, 10), this.dataset.isDefault === '1'); });
+        tdActions.appendChild(btnEdit);
+        tdActions.appendChild(btnDel);
+        tr.appendChild(tdActions);
+        tbody.appendChild(tr);
+      });
+    } catch (e) { console.error('get_replacements:', e); }
+  }
+
+  function showReplacementForm(index) {
+    replacementEditIndex = index;
+    const form = el('replacement-form');
+    form.style.display = 'block';
+    el('replacement-trigger-error').style.display = 'none';
+    el('replacement-output-error').style.display = 'none';
+    if (index >= 0 && index < replacements.length) {
+      const r = replacements[index];
+      el('replacement-trigger').value = r.trigger || '';
+      qs('input[name="replacement-type"][value="' + (r.type || 'simple') + '"]').checked = true;
+      el('replacement-output').value = r.output || '';
+      el('replacement-prefix').value = r.prefix || '';
+      el('replacement-suffix').value = r.suffix || '';
+      qs('input[name="replacement-scope"][value="' + (r.scope || 'both') + '"]').checked = true;
+    } else {
+      el('replacement-trigger').value = '';
+      qs('input[name="replacement-type"][value="simple"]').checked = true;
+      el('replacement-output').value = '';
+      el('replacement-prefix').value = '';
+      el('replacement-suffix').value = '';
+      qs('input[name="replacement-scope"][value="both"]').checked = true;
+    }
+    toggleReplacementWrapRow();
+  }
+
+  function hideReplacementForm() {
+    el('replacement-form').style.display = 'none';
+    replacementEditIndex = -1;
+  }
+
+  function toggleReplacementWrapRow() {
+    const isWrap = qs('input[name="replacement-type"]:checked').value === 'wrap';
+    el('replacement-output-row').style.display = isWrap ? 'none' : 'block';
+    el('replacement-wrap-row').style.display = isWrap ? 'block' : 'none';
+  }
+
+  qsAll('input[name="replacement-type"]').forEach(function(radio) {
+    radio.addEventListener('change', toggleReplacementWrapRow);
+  });
+
+  async function saveReplacement() {
+    const trigger = (el('replacement-trigger').value || '').trim();
+    const type = qs('input[name="replacement-type"]:checked').value;
+    const output = (el('replacement-output').value || '').trim();
+    const prefix = (el('replacement-prefix').value || '').trim();
+    const suffix = (el('replacement-suffix').value || '').trim();
+    const scope = qs('input[name="replacement-scope"]:checked').value;
+    el('replacement-trigger-error').style.display = 'none';
+    el('replacement-output-error').style.display = 'none';
+    if (!trigger) {
+      el('replacement-trigger-error').textContent = 'Trigger cannot be empty';
+      el('replacement-trigger-error').style.display = 'block';
+      return;
+    }
+    if (type !== 'wrap' && !output) {
+      el('replacement-output-error').textContent = 'Output cannot be empty for this type';
+      el('replacement-output-error').style.display = 'block';
+      return;
+    }
+    try {
+      let result;
+      if (replacementEditIndex >= 0) {
+        result = await pywebview.api.update_replacement(replacementEditIndex, trigger, type, output, prefix, suffix, scope);
+      } else {
+        result = await pywebview.api.add_replacement(trigger, type, output, prefix, suffix, scope);
+      }
+      if (result && result.ok) {
+        hideReplacementForm();
+        refreshReplacements();
+      } else if (result && result.error) {
+        if (result.error.toLowerCase().indexOf('trigger') >= 0) {
+          el('replacement-trigger-error').textContent = result.error;
+          el('replacement-trigger-error').style.display = 'block';
+        } else {
+          el('replacement-output-error').textContent = result.error;
+          el('replacement-output-error').style.display = 'block';
+        }
+      }
+    } catch (e) { console.error('saveReplacement:', e); }
+  }
+
+  async function deleteReplacement(index, isDefault) {
+    if (isDefault && !confirm('Delete this default rule? You can add it back later.')) return;
+    try {
+      const result = await pywebview.api.delete_replacement(index);
+      if (result && result.ok) refreshReplacements();
+      else if (result && result.error) alert(result.error);
+    } catch (e) { console.error('deleteReplacement:', e); }
+  }
+
+  el('add-replacement').addEventListener('click', function() { showReplacementForm(-1); });
+  el('replacement-save').addEventListener('click', saveReplacement);
+  el('replacement-cancel').addEventListener('click', hideReplacementForm);
 
   async function refreshPermissions() {
     try {

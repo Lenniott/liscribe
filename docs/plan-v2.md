@@ -26,7 +26,7 @@
 | 8 | Onboarding | ✅ Done — 412 tests passing; first-launch wizard, replay from Settings |
 | 8b | Onboarding loading state | ⬜ Pending — do last |
 | 9 | Bundle + install | ⬜ Next |
-| 10 | Word Replacement | ⬜ |
+| 10 | Word Replacement | ✅ Done — 438 tests passing (Phase 10 tests + existing) |
 | 11 | Refactor (panel layer + services) | ⬜ |
 
 ---
@@ -166,6 +166,7 @@ Create these empty files exactly. Content comes in later phases.
 src/liscribe/
 ├── app.py                     # rumps App entry point — Phase 3
 ├── app_instance.py            # single-instance lock + activate socket (one process per user)
+├── replacements.py            # Phase 10 — word replacement engine (pure function, stdlib only)
 ├── bridge/
 │   ├── __init__.py
 │   ├── scribe_bridge.py       # Phase 4
@@ -419,7 +420,7 @@ tests/test_dictate_controller.py
 - [x] No focused input → clipboard + notification
 - [x] Missing permission → Setup Required modal with Help ↗ link
 - [x] Permission granted → next trigger works without restart
-- [ ] Word replacements (scope Dictate or Both) applied before paste — see Phase 10
+- [x] Word replacements (scope Dictate or Both) applied before paste — Phase 10
 
 ---
 
@@ -680,18 +681,18 @@ Must cover (all written before `replacements.py` is implemented):
 
 **Done condition:**
 
-- [ ] `tests/test_replacements.py` written and passing before any integration work begins
-- [ ] `replacements.py` has zero imports outside Python stdlib
-- [ ] `replacements.apply()` is the only entry point — no other public functions
-- [ ] Scribe output applies replacements (scope `"transcripts"`) before file write
-- [ ] Dictate applies replacements (scope `"dictate"`) before paste
-- [ ] Scope filtering correct: Transcripts rules not applied to Dictate and vice versa
-- [ ] Replacements tab present in Settings with full CRUD (add, edit, delete)
-- [ ] Default rules are present on first launch without manual setup
-- [ ] Deleting a default rule requires confirmation; deleting a user rule does not
-- [ ] Empty trigger or empty output shows a validation error and is never saved
-- [ ] All rules persist across app restarts
-- [ ] `.venv/bin/pytest` count increased from Phase 9's final count
+- [x] `tests/test_replacements.py` written and passing before any integration work begins
+- [x] `replacements.py` has zero imports outside Python stdlib
+- [x] `replacements.apply()` is the only entry point — no other public functions
+- [x] Scribe output applies replacements (scope `"transcripts"`) before file write
+- [x] Dictate applies replacements (scope `"dictate"`) before paste
+- [x] Scope filtering correct: Transcripts rules not applied to Dictate and vice versa
+- [x] Replacements tab present in Settings with full CRUD (add, edit, delete)
+- [x] Default rules are present on first launch without manual setup
+- [x] Deleting a default rule requires confirmation; deleting a user rule does not
+- [x] Empty trigger or empty output shows a validation error and is never saved
+- [x] All rules persist across app restarts
+- [x] `.venv/bin/pytest` count increased from Phase 9's final count
 
 ---
 

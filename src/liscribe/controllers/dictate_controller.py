@@ -12,7 +12,7 @@ Design notes:
     - Paste helpers (_has_external_focus, _simulate_paste, _simulate_enter, _notify)
       are module-level functions so tests can patch them individually.
     - No direct engine imports; services wrap all engine access.
-    - Phase 10 TODO in _stop_transcribe_paste for word replacements.
+    - Word replacements (Phase 10) applied before paste in _stop_transcribe_paste.
 """
 
 from __future__ import annotations
@@ -24,6 +24,8 @@ import threading
 import time
 from enum import Enum
 from typing import TYPE_CHECKING, Callable
+
+from liscribe import replacements as _replacements
 
 if TYPE_CHECKING:
     from liscribe.services.audio_service import AudioService
@@ -357,9 +359,17 @@ class DictateController:
 
             if not text:
                 logger.debug("DictateController: empty transcription result, nothing to paste")
+                if self._on_paste_complete:
+                    self._on_paste_complete()
                 return
 
-            # TODO Phase 10: wire replacements before paste
+            t0 = time.perf_counter()
+            before_len = len(text)
+            text = _replacements.apply(
+                text,
+                self._config.replacement_rules,
+                "dictate",
+            )
 
             target = self._target_bundle_id
             if self._run_on_main:

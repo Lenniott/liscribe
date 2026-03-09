@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import threading
 from pathlib import Path
 from typing import Callable
 
 from liscribe import transcriber as _transcriber
 from liscribe import output as _output
+from liscribe import replacements as _replacements
 from liscribe.notes import Note
 from liscribe.transcriber import (
     TranscriptionResult,
@@ -16,6 +18,8 @@ from liscribe.transcriber import (
     build_merged_transcription_result,
 )
 from liscribe.services.config_service import ConfigService
+
+logger = logging.getLogger(__name__)
 
 
 def _load_dual_source_session(audio_path: Path) -> dict | None:
@@ -217,23 +221,43 @@ class ModelService:
         after the session, not \"mic\". If filename_stem is None and
         wav_path is a session mic.wav, it is inferred from the session dir.
 
-        Wraps output.save_transcript() so the controller layer never
-        imports engine files directly.
+        Applies word replacement rules (scope \"transcripts\") before writing.
+        Builds markdown via output.build_markdown; does not call output.save_transcript
+        so we can apply replacements without modifying the frozen engine file.
         """
         wav_path = Path(wav_path)
         if filename_stem is None:
             dual = _load_dual_source_session(wav_path)
             if dual is not None:
                 filename_stem = dual["session_dir"].name
-        return _output.save_transcript(
+        stem = filename_stem or wav_path.stem
+        suffix = f"_{model_name}" if model_name else ""
+        filename = f"{stem}{suffix}.md"
+        parent = (
+            Path(save_folder).expanduser().resolve()
+            if save_folder
+            else wav_path.parent
+        )
+        md_path = parent / filename
+        parent.mkdir(parents=True, exist_ok=True)
+
+        content = _output.build_markdown(
             result=result,
             audio_path=wav_path,
             notes=notes,
+            mic_name="unknown",
+            speaker_mode=False,
             model_name=model_name,
-            include_model_in_filename=True,
-            output_dir=save_folder,
-            filename_stem=filename_stem,
         )
+        content = _replacements.apply(
+            content,
+            self._config.replacement_rules,
+            "transcripts",
+        )
+        md_path.write_text(content, encoding="utf-8")
+        md_path.chmod(0o600)
+        logger.info("Transcript saved: %s", md_path)
+        return md_path
 
     def cleanup_wav(
         self,

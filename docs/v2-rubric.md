@@ -709,25 +709,25 @@ Add / Edit rule form (shown inline):
 
 ### Success criteria
 
-- [ ] Default rules are present on first launch without any manual setup
-- [ ] Default rules survive app restarts and config reloads unchanged
-- [ ] User can add a rule specifying trigger, type, output/prefix, suffix, and scope
-- [ ] User can edit any existing rule, including the defaults
-- [ ] User can delete any rule; deleting a default rule shows a confirmation prompt before proceeding
-- [ ] Case-insensitive whole-word matching — `Hashtag`, `hashtag`, and `HASHTAG` all match the same rule
-- [ ] Substring non-match — a rule for `"hash"` does not fire when the word is `"hashtag"`
-- [ ] Simple replacement: trigger word replaced by the output string
-- [ ] Newline replacement: trigger word replaced by a line break at that position
-- [ ] Wrap replacement: trigger word removed, next word wrapped in prefix + suffix
-- [ ] Wrap replacement: if the trigger is the last word, output is unchanged
-- [ ] Scope Transcripts: rule applies to Scribe and Transcribe file output, not to Dictate paste
-- [ ] Scope Dictate: rule applies to Dictate paste output, not to Scribe or Transcribe files
-- [ ] Scope Both: rule applies to all output — Scribe, Transcribe, and Dictate
-- [ ] Replacements applied after transcription, before file write or paste — never mid-recording
-- [ ] Multiple rules applied in sequence in the order they appear in the list
-- [ ] Rules persist across app restarts
-- [ ] Empty trigger or empty output shows an inline validation error and is never saved to config
-- [ ] Engine function `replacements.apply()` has zero imports outside Python stdlib
+- [x] Default rules are present on first launch without any manual setup
+- [x] Default rules survive app restarts and config reloads unchanged
+- [x] User can add a rule specifying trigger, type, output/prefix, suffix, and scope
+- [x] User can edit any existing rule, including the defaults
+- [x] User can delete any rule; deleting a default rule shows a confirmation prompt before proceeding
+- [x] Case-insensitive whole-word matching — `Hashtag`, `hashtag`, and `HASHTAG` all match the same rule
+- [x] Substring non-match — a rule for `"hash"` does not fire when the word is `"hashtag"`
+- [x] Simple replacement: trigger word replaced by the output string
+- [x] Newline replacement: trigger word replaced by a line break at that position
+- [x] Wrap replacement: trigger word removed, next word wrapped in prefix + suffix
+- [x] Wrap replacement: if the trigger is the last word, output is unchanged
+- [x] Scope Transcripts: rule applies to Scribe and Transcribe file output, not to Dictate paste
+- [x] Scope Dictate: rule applies to Dictate paste output, not to Scribe or Transcribe files
+- [x] Scope Both: rule applies to all output — Scribe, Transcribe, and Dictate
+- [x] Replacements applied after transcription, before file write or paste — never mid-recording
+- [x] Multiple rules applied in sequence in the order they appear in the list
+- [x] Rules persist across app restarts
+- [x] Empty trigger or empty output shows an inline validation error and is never saved to config
+- [x] Engine function `replacements.apply()` has zero imports outside Python stdlib
 
 ---
 
@@ -778,5 +778,5 @@ Add / Edit rule form (shown inline):
 
 ---
 
-*Status: In progress — Scribe, Transcribe, Dictate, Settings, and Onboarding verified per plan-v2 Phases 4–8. Word Replacement pending.*
+*Status: In progress — Scribe, Transcribe, Dictate, Settings, Onboarding, and Word Replacement verified per plan-v2 Phases 4–10.*
 *Rubric, plan-v2, and architecture maintenance: see docs/starter.md and docs/reviewer.md.*
