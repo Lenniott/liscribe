@@ -391,6 +391,7 @@ class LiscribeApp(rumps.App):
             rumps.MenuItem("Dictate  ⌃⌃ / hold ⌃", callback=self.open_dictate),
             rumps.MenuItem("Transcribe", callback=self.open_transcribe),
             rumps.MenuItem("Settings", callback=self.open_settings),
+            rumps.MenuItem("Restart", callback=lambda _: self._schedule_restart()),
         ]
 
     # ------------------------------------------------------------------
