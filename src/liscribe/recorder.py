@@ -486,7 +486,7 @@ class RecordingSession:
                 tmp_dir = Path(tempfile.mkdtemp())
                 fallback_path = tmp_dir / f"{timestamp}.wav"
                 _save_private_wav(fallback_path, self.sample_rate, mic_audio)
-                logger.error("Fallback save succeeded: %s", fallback_path)
+                logger.warning("Fallback save succeeded: %s", fallback_path)
                 return str(fallback_path)
             except Exception as fallback_exc:
                 logger.error("Fallback save also failed: %s", fallback_exc, exc_info=True)

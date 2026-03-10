@@ -334,15 +334,17 @@
         }
         if (pathEl && p.error) {
           clearChildren(pathEl);
-          const msg = document.createTextNode('Transcription failed. Audio saved at: ');
-          pathEl.appendChild(msg);
           if (p.wav_path) {
+            const msg = document.createTextNode('Transcription failed. Audio saved at: ');
+            pathEl.appendChild(msg);
             const pathSpan = document.createElement('span');
             pathSpan.className = 'copyable-path';
             pathSpan.textContent = p.wav_path;
             pathSpan.title = 'Click to copy';
             pathSpan.addEventListener('click', () => navigator.clipboard.writeText(p.wav_path));
             pathEl.appendChild(pathSpan);
+          } else {
+            pathEl.appendChild(document.createTextNode('Transcription failed \u2014 no audio file was saved.'));
           }
         } else if (pathEl && p.md_path) {
           pathEl.textContent = p.md_path;

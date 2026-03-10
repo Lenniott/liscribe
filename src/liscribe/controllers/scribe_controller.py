@@ -125,6 +125,10 @@ class ScribeController:
         return self._save_path or self._config.save_folder
 
     @property
+    def wav_path(self) -> str | None:
+        return self._result.wav_path if self._result is not None else None
+
+    @property
     def current_mic(self) -> str | None:
         return self._current_mic
 

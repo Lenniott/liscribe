@@ -121,8 +121,15 @@ class AudioService:
         In single-stream mode, deletes the WAV file.
         In dual-source mode, deletes the entire session directory
         (mic.wav + speaker.wav + session.json).
+
+        Safe to call in any state — exceptions from stop() are caught and
+        logged rather than re-raised, since we are discarding the artifact.
         """
-        path_str = self.stop()
+        try:
+            path_str = self.stop()
+        except Exception as exc:
+            logger.warning("Error during cancel/stop (ignored): %s", exc)
+            return
         if not path_str:
             return
         p = Path(path_str)
