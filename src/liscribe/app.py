@@ -716,6 +716,15 @@ class LiscribeApp(rumps.App):
     def _on_dictate_hold_end(self) -> None:
         self._on_dictate_trigger("handle_hold_end")
 
+    def _close_dictate_setup_dialog(self) -> None:
+        """Close the Setup Required dialog (called from 'Not now' bridge method)."""
+        w = self._panels.get("dictate")
+        if w is not None:
+            try:
+                w.destroy()
+            except Exception as exc:
+                logger.warning("Could not close dictate setup dialog: %s", exc)
+
     def _close_settings_panel(self) -> None:
         """Close the Settings panel (called from bridge when user clicks header close)."""
         w = self._panels.get("settings")
@@ -795,12 +804,16 @@ class LiscribeApp(rumps.App):
             except Exception:
                 self._panels.pop("dictate", None)
 
+        self._dictate_bridge.set_close_dialog(
+            lambda: AppHelper.callAfter(self._close_dictate_setup_dialog)
+        )
         window = webview.create_window(
             "Setup Required",
             url,
             width=460,
             height=320,
             resizable=False,
+            js_api=self._dictate_bridge,
         )
 
         def _on_closed() -> None:

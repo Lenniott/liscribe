@@ -181,7 +181,9 @@
 
     // ── Setup Required buttons ─────────────────────────────────────────
     document.getElementById('btn-not-now').addEventListener('click', function() {
-      window.close();
+      if (window.pywebview && window.pywebview.api) {
+        window.pywebview.api.close_dialog();
+      }
     });
 
     document.getElementById('btn-open-settings').addEventListener('click', function() {
@@ -190,11 +192,13 @@
       var pane = (missing.indexOf('Accessibility') !== -1)
         ? 'com.apple.preference.security?Privacy_Accessibility'
         : 'com.apple.preference.security?Privacy_ListenEvent';
-      window.location.href = 'x-apple.systempreferences:' + pane;
+      if (window.pywebview && window.pywebview.api) {
+        window.pywebview.api.open_system_prefs(pane);
+      }
     });
 
     document.getElementById('btn-help').addEventListener('click', function() {
-      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.open_settings_help === 'function') {
+      if (window.pywebview && window.pywebview.api) {
         window.pywebview.api.open_settings_help('permissions');
       }
     });
