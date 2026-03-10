@@ -51,6 +51,17 @@
             <span id="start-on-login-label">OFF</span>
           </label>
         </div>
+        <div class="section-label mt-16">Crash Recovery</div>
+        <div class="form-row">
+          <label class="toggle">
+            <input type="checkbox" id="crash-recovery">
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span id="crash-recovery-label">OFF</span>
+          </label>
+        </div>
+        <div class="form-row-hint" id="crash-recovery-hint">
+          Auto-restart after a crash. Only available when running as Liscribe.app.
+        </div>
         <div class="section-label mt-16">Open transcripts with</div>
         <div class="form-row app-row">
           <div id="open-transcript-app-display" class="app-display">Default app</div>
@@ -263,6 +274,11 @@
     el('dictation-auto-enter-label').textContent = el('dictation-auto-enter').checked ? 'ON' : 'OFF';
     el('start-on-login').checked = config.start_on_login === true;
     el('start-on-login-label').textContent = el('start-on-login').checked ? 'ON' : 'OFF';
+    // Crash recovery status is not in config.json; query separately.
+    pywebview.api.get_crash_recovery_enabled().then(function(enabled) {
+      el('crash-recovery').checked = !!enabled;
+      el('crash-recovery-label').textContent = enabled ? 'ON' : 'OFF';
+    }).catch(function() {});
     const appName = config.open_transcript_app || 'default';
     el('open-transcript-app-display').textContent = appName === 'default' ? 'Default app' : appName;
 
@@ -723,6 +739,17 @@
     const v = el('start-on-login').checked;
     saveConfigKey('start_on_login', v);
     el('start-on-login-label').textContent = v ? 'ON' : 'OFF';
+  });
+  el('crash-recovery').addEventListener('change', async function() {
+    const v = this.checked;
+    const res = await pywebview.api.set_crash_recovery_enabled(v);
+    if (!res || !res.ok) {
+      // Revert toggle on failure.
+      this.checked = !v;
+      el('crash-recovery-label').textContent = !v ? 'ON' : 'OFF';
+    } else {
+      el('crash-recovery-label').textContent = v ? 'ON' : 'OFF';
+    }
   });
   el('speaker-device-input').addEventListener('change', async function() {
     const name = (this.value || '').trim() || 'Multi-Output Device';

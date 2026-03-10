@@ -77,7 +77,12 @@ from liscribe.controllers.onboarding_controller import OnboardingController
 from liscribe.controllers.scribe_controller import ControllerState, ScribeController
 from liscribe.controllers.transcribe_controller import TranscribeController, TranscribeState
 from liscribe.services.audio_service import AudioService
-from liscribe.services.config_service import ConfigService, _get_app_bundle_path
+from liscribe.services.config_service import (
+    ConfigService,
+    _get_app_bundle_path,
+    install_crash_recovery_agent,
+    uninstall_crash_recovery_agent,
+)
 from liscribe.services.hotkey_service import HotkeyService
 from liscribe.services.model_service import ModelService
 from liscribe.services.permissions_service import has_dictate_permissions
@@ -939,6 +944,14 @@ def main() -> None:
     hotkey = HotkeyService(config)
 
     app = LiscribeApp(config=config, audio=audio, model=model, hotkey=hotkey)
+
+    # Install crash recovery agent (KeepAlive) if running as .app bundle.
+    bundle = _get_app_bundle_path()
+    if bundle:
+        try:
+            install_crash_recovery_agent(bundle)
+        except Exception:
+            logger.warning("Could not install crash recovery agent", exc_info=True)
 
     hotkey.start(
         on_scribe=lambda: AppHelper.callAfter(app.open_scribe),

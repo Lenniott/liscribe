@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import plistlib
 import subprocess
 import sys
 from pathlib import Path
@@ -19,6 +21,62 @@ START_ON_LOGIN_KEY = "start_on_login"
 
 
 _LAUNCHD_PLIST = Path.home() / "Library/LaunchAgents/com.liscribe.app.plist"
+
+_CRASH_RECOVERY_LABEL = "com.liscribe.crashrecovery"
+_CRASH_RECOVERY_PLIST = Path.home() / "Library" / "LaunchAgents" / f"{_CRASH_RECOVERY_LABEL}.plist"
+
+
+def is_crash_recovery_enabled() -> bool:
+    """Return True if the crash recovery LaunchAgent plist is installed."""
+    return _CRASH_RECOVERY_PLIST.exists()
+
+
+def install_crash_recovery_agent(bundle: Path) -> None:
+    """Write a KeepAlive LaunchAgent plist so launchd auto-restarts on crash.
+
+    Idempotent: only writes if the plist does not already exist.
+    Only works when running as a .app bundle.
+    """
+    if _CRASH_RECOVERY_PLIST.exists():
+        return
+    _CRASH_RECOVERY_PLIST.parent.mkdir(parents=True, exist_ok=True)
+    uid = os.getuid()
+    domain = f"gui/{uid}"
+    plist = {
+        "Label": _CRASH_RECOVERY_LABEL,
+        "ProgramArguments": ["open", "-a", str(bundle)],
+        "KeepAlive": True,
+        "RunAtLoad": False,
+    }
+    try:
+        with open(_CRASH_RECOVERY_PLIST, "wb") as f:
+            plistlib.dump(plist, f)
+        subprocess.run(
+            ["launchctl", "bootstrap", domain, str(_CRASH_RECOVERY_PLIST)],
+            check=True,
+            capture_output=True,
+            timeout=5,
+        )
+        logger.info("Crash recovery agent installed: %s", _CRASH_RECOVERY_PLIST)
+    except Exception as exc:
+        logger.warning("Failed to install crash recovery agent: %s", exc)
+        _CRASH_RECOVERY_PLIST.unlink(missing_ok=True)
+
+
+def uninstall_crash_recovery_agent() -> None:
+    """Remove the crash recovery LaunchAgent from launchd and disk."""
+    uid = os.getuid()
+    domain = f"gui/{uid}"
+    try:
+        subprocess.run(
+            ["launchctl", "bootout", domain, _CRASH_RECOVERY_LABEL],
+            capture_output=True,
+            timeout=5,
+        )
+    except Exception as exc:
+        logger.debug("bootout for crash recovery failed: %s", exc)
+    _CRASH_RECOVERY_PLIST.unlink(missing_ok=True)
+    logger.info("Crash recovery agent removed")
 
 
 def _get_app_bundle_path() -> Path | None:
