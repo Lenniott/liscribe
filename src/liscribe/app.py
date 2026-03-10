@@ -75,7 +75,7 @@ from liscribe.controllers.dictate_controller import (
 )
 from liscribe.controllers.onboarding_controller import OnboardingController
 from liscribe.controllers.scribe_controller import ControllerState, ScribeController
-from liscribe.controllers.transcribe_controller import TranscribeController
+from liscribe.controllers.transcribe_controller import TranscribeController, TranscribeState
 from liscribe.services.audio_service import AudioService
 from liscribe.services.config_service import ConfigService, _get_app_bundle_path
 from liscribe.services.hotkey_service import HotkeyService
@@ -520,8 +520,11 @@ class LiscribeApp(rumps.App):
 
         def _on_closed() -> None:
             if name == "scribe":
-                if self._scribe_ctrl.state == ControllerState.RECORDING:
+                if self._scribe_ctrl.state in (ControllerState.RECORDING, ControllerState.TRANSCRIBING):
                     self._scribe_ctrl.cancel()
+            if name == "transcribe":
+                if self._transcribe_ctrl.state == TranscribeState.TRANSCRIBING:
+                    self._transcribe_ctrl.cancel()
             self._panels.pop(name, None)
             # When the last dock panel closes, return focus to the app that had
             # it before we opened. Explicitly activating the previous app is
@@ -545,7 +548,7 @@ class LiscribeApp(rumps.App):
         if name == "scribe":
             window.localization = {
                 **window.localization,
-                "global.quitConfirmation": "Recording in progress\n\nGo back to recording, or leave and discard?",
+                "global.quitConfirmation": "Recording or transcription in progress\n\nGo back, or leave and discard?",
                 "global.quit": "Leave and discard",
                 "global.cancel": "Back",
             }

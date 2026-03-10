@@ -69,6 +69,7 @@ class TranscribeController:
         self._prefill: PrefillState | None = None
         self._progress: list[ModelProgress] = []
         self._lock = threading.Lock()
+        self._cancelled: bool = False
 
     # ------------------------------------------------------------------
     # State
@@ -156,6 +157,7 @@ class TranscribeController:
 
         with self._lock:
             self._progress = [ModelProgress(model_name=m) for m in downloaded]
+            self._cancelled = False
         self._state = TranscribeState.TRANSCRIBING
 
         thread = threading.Thread(
@@ -177,6 +179,9 @@ class TranscribeController:
         output_folder: str,
     ) -> None:
         for i, model_name in enumerate(models):
+            with self._lock:
+                if self._cancelled:
+                    break
             entry = self._progress[i]
 
             def _on_progress(p: float, idx: int = i) -> None:
@@ -208,7 +213,20 @@ class TranscribeController:
                     entry.is_done = True
 
         with self._lock:
-            self._state = TranscribeState.DONE
+            if not self._cancelled:
+                self._state = TranscribeState.DONE
+
+    def cancel(self) -> None:
+        """Cancel in-progress transcription. Safe to call in any state.
+
+        Sets a flag that stops the background thread after its current model.
+        When cancelled, the state transitions to IDLE (not DONE).
+        """
+        if self._state == TranscribeState.IDLE:
+            return
+        with self._lock:
+            self._cancelled = True
+        self._state = TranscribeState.IDLE
 
     def get_progress(self) -> list[dict]:
         """Return JSON-serialisable progress for the UI."""

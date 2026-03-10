@@ -118,6 +118,7 @@
   let pendingWavPath   = null;
   let pendingSaveFolder = null;
   let isRecording      = true;
+  let isTranscribing   = false;
 
   // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -366,6 +367,7 @@
       if (allDone) {
         clearInterval(progressInterval);
         progressInterval = null;
+        isTranscribing = false;
         const footer = el('transcribing-footer');
         if (footer) footer.style.display = '';
         try { pywebview.api.transcription_finished(); } catch (_) { /* lifecycle: no-op if bridge not ready */ }
@@ -452,6 +454,7 @@
 
   async function doStopAndSave() {
     isRecording = false;
+    isTranscribing = true;
     stopPolling();
     showView('view-transcribing');
 
@@ -528,9 +531,9 @@
     }
   });
 
-  // Intercept close gesture during recording — use same native dialog as red X
+  // Intercept close gesture during recording or transcribing — use same native dialog as red X
   window.addEventListener('beforeunload', function (e) {
-    if (isRecording) {
+    if (isRecording || isTranscribing) {
       e.preventDefault();
       e.returnValue = '';
       try { pywebview.api.request_close(); } catch (_) { /* lifecycle: no-op if bridge not ready */ }
