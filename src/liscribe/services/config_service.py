@@ -27,7 +27,12 @@ _CRASH_RECOVERY_PLIST = Path.home() / "Library" / "LaunchAgents" / f"{_CRASH_REC
 
 
 def is_crash_recovery_enabled() -> bool:
-    """Return True if the crash recovery LaunchAgent plist is installed."""
+    """Return True if the crash recovery LaunchAgent plist is installed on disk.
+
+    Uses plist file presence as a proxy for launchd registration state.
+    These can diverge if the plist is deleted manually without calling
+    launchctl bootout, but this is an acceptable edge case for UI display.
+    """
     return _CRASH_RECOVERY_PLIST.exists()
 
 
@@ -61,6 +66,7 @@ def install_crash_recovery_agent(bundle: Path) -> None:
     except Exception as exc:
         logger.warning("Failed to install crash recovery agent: %s", exc)
         _CRASH_RECOVERY_PLIST.unlink(missing_ok=True)
+        raise
 
 
 def uninstall_crash_recovery_agent() -> None:

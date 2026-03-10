@@ -81,7 +81,6 @@ from liscribe.services.config_service import (
     ConfigService,
     _get_app_bundle_path,
     install_crash_recovery_agent,
-    uninstall_crash_recovery_agent,
 )
 from liscribe.services.hotkey_service import HotkeyService
 from liscribe.services.model_service import ModelService
@@ -951,6 +950,7 @@ def main() -> None:
         try:
             install_crash_recovery_agent(bundle)
         except Exception:
+            # Intentional: a crash recovery install failure must not prevent app startup.
             logger.warning("Could not install crash recovery agent", exc_info=True)
 
     hotkey.start(
