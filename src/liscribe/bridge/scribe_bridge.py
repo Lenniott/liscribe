@@ -185,8 +185,14 @@ class ScribeBridge:
     def get_transcription_progress(self) -> list[dict]:
         """Return progress with paths in display form (~ for home)."""
         raw = self._controller.get_transcription_progress()
+        result = self._controller._result
+        wav_path = to_display(result.wav_path) if result is not None else None
         return [
-            {**p, "md_path": to_display(p.get("md_path")) if p.get("md_path") else p.get("md_path")}
+            {
+                **p,
+                "md_path": to_display(p.get("md_path")) if p.get("md_path") else p.get("md_path"),
+                "wav_path": wav_path,
+            }
             for p in raw
         ]
 

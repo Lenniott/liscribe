@@ -34,6 +34,7 @@ class AudioService:
         self._session: RecordingSession | None = None
         self._thread: threading.Thread | None = None
         self._wav_path: str | None = None
+        self._run_error: Exception | None = None
 
     # ------------------------------------------------------------------
     # Device enumeration
@@ -87,7 +88,10 @@ class AudioService:
             old_stdout, old_stderr = sys.stdout, sys.stderr
             try:
                 sys.stdout = sys.stderr = devnull
-                self._wav_path = self._session.start()
+                try:
+                    self._wav_path = self._session.start()
+                except Exception as exc:
+                    self._run_error = exc
             finally:
                 sys.stdout, sys.stderr = old_stdout, old_stderr
 
@@ -102,9 +106,13 @@ class AudioService:
         if self._thread is not None:
             self._thread.join(timeout=10)
         path = self._wav_path
+        run_error = self._run_error
         self._session = None
         self._thread = None
         self._wav_path = None
+        self._run_error = None
+        if run_error is not None:
+            raise run_error
         return path
 
     def cancel(self) -> None:

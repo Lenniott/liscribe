@@ -612,6 +612,16 @@ input[type="checkbox"] {
   margin-bottom: 8px;
 }
 
+/* Clickable WAV path shown in error state below a progress row */
+.copyable-path {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  color: var(--text-muted);
+}
+.copyable-path:hover {
+  color: var(--text-primary);
+}
+
 /* "Open Transcript" button rendered below each completed row */
 .open-transcript-btn {
   font-size: 12px;

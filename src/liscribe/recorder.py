@@ -17,6 +17,7 @@ import json
 import logging
 import signal
 import sys
+import tempfile
 import threading
 import time
 from datetime import datetime
@@ -417,60 +418,79 @@ class RecordingSession:
 
             mic_audio = mic_audio.astype(np.float32)
 
-        # Create save directory only when we have audio to write
-        self.save_dir.mkdir(parents=True, exist_ok=True)
-
-        # Generate filename and save
+        # Generate filename (used in both primary and fallback save paths)
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        if not dual_source_mode:
-            wav_path = self.save_dir / f"{timestamp}.wav"
-            _save_private_wav(wav_path, self.sample_rate, mic_audio)
+
+        try:
+            # Create save directory only when we have audio to write
+            self.save_dir.mkdir(parents=True, exist_ok=True)
+
+            if not dual_source_mode:
+                wav_path = self.save_dir / f"{timestamp}.wav"
+                _save_private_wav(wav_path, self.sample_rate, mic_audio)
+                mins, secs = divmod(int(elapsed), 60)
+                print(f"Saved: {wav_path} ({mins}m {secs}s)")
+                return str(wav_path)
+
+            session_dir = self.save_dir / timestamp
+            session_dir.mkdir(parents=True, exist_ok=True)
+
+            mic_len = len(mic_audio)
+            spk_len = len(speaker_audio)
+            if spk_len < mic_len:
+                pad_spec = ((0, mic_len - spk_len), (0, 0)) if speaker_audio.ndim == 2 else (0, mic_len - spk_len)
+                speaker_audio = np.pad(speaker_audio, pad_spec)
+            elif spk_len > mic_len:
+                pad_spec = ((0, spk_len - mic_len), (0, 0)) if mic_audio.ndim == 2 else (0, spk_len - mic_len)
+                mic_audio = np.pad(mic_audio, pad_spec)
+
+            mic_wav = session_dir / "mic.wav"
+            speaker_wav = session_dir / "speaker.wav"
+            _save_private_wav(mic_wav, self.sample_rate, mic_audio)
+            _save_private_wav(speaker_wav, self.sample_rate, speaker_audio.astype(np.float32))
+
+            offset = 0.0
+            if self._mic_first_adc_time is not None and self._speaker_first_adc_time is not None:
+                offset = round(self._speaker_first_adc_time - self._mic_first_adc_time, 4)
+
+            start_unix = float(self._start_time or time.time())
+            metadata = {
+                "mode": "mic+speaker",
+                "t0_unix": start_unix,
+                "t0_iso": datetime.fromtimestamp(start_unix).isoformat(),
+                "sample_rate": self.sample_rate,
+                "channels": self.channels,
+                "devices": {
+                    "mic": self._mic_device_name,
+                    "speaker_input": self.blackhole_name,
+                    "speaker_output_device": self.speaker_device_name,
+                },
+                "offset_correction_seconds": offset,
+            }
+            session_meta_path = session_dir / "session.json"
+            session_meta_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
+            session_meta_path.chmod(0o600)
+
             mins, secs = divmod(int(elapsed), 60)
-            print(f"Saved: {wav_path} ({mins}m {secs}s)")
-            return str(wav_path)
+            print(f"Saved: {session_dir} ({mins}m {secs}s)")
+            return str(mic_wav)
 
-        session_dir = self.save_dir / timestamp
-        session_dir.mkdir(parents=True, exist_ok=True)
-
-        mic_len = len(mic_audio)
-        spk_len = len(speaker_audio)
-        if spk_len < mic_len:
-            pad_spec = ((0, mic_len - spk_len), (0, 0)) if speaker_audio.ndim == 2 else (0, mic_len - spk_len)
-            speaker_audio = np.pad(speaker_audio, pad_spec)
-        elif spk_len > mic_len:
-            pad_spec = ((0, spk_len - mic_len), (0, 0)) if mic_audio.ndim == 2 else (0, spk_len - mic_len)
-            mic_audio = np.pad(mic_audio, pad_spec)
-
-        mic_wav = session_dir / "mic.wav"
-        speaker_wav = session_dir / "speaker.wav"
-        _save_private_wav(mic_wav, self.sample_rate, mic_audio)
-        _save_private_wav(speaker_wav, self.sample_rate, speaker_audio.astype(np.float32))
-
-        offset = 0.0
-        if self._mic_first_adc_time is not None and self._speaker_first_adc_time is not None:
-            offset = round(self._speaker_first_adc_time - self._mic_first_adc_time, 4)
-
-        start_unix = float(self._start_time or time.time())
-        metadata = {
-            "mode": "mic+speaker",
-            "t0_unix": start_unix,
-            "t0_iso": datetime.fromtimestamp(start_unix).isoformat(),
-            "sample_rate": self.sample_rate,
-            "channels": self.channels,
-            "devices": {
-                "mic": self._mic_device_name,
-                "speaker_input": self.blackhole_name,
-                "speaker_output_device": self.speaker_device_name,
-            },
-            "offset_correction_seconds": offset,
-        }
-        session_meta_path = session_dir / "session.json"
-        session_meta_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
-        session_meta_path.chmod(0o600)
-
-        mins, secs = divmod(int(elapsed), 60)
-        print(f"Saved: {session_dir} ({mins}m {secs}s)")
-        return str(mic_wav)
+        except Exception as exc:
+            logger.error(
+                "FAILED to save recording to '%s': %s — attempting fallback save to temp dir",
+                self.save_dir,
+                exc,
+                exc_info=True,
+            )
+            try:
+                tmp_dir = Path(tempfile.mkdtemp())
+                fallback_path = tmp_dir / f"{timestamp}.wav"
+                _save_private_wav(fallback_path, self.sample_rate, mic_audio)
+                logger.error("Fallback save succeeded: %s", fallback_path)
+                return str(fallback_path)
+            except Exception as fallback_exc:
+                logger.error("Fallback save also failed: %s", fallback_exc, exc_info=True)
+                return None
 
 
 def start_recording_session(

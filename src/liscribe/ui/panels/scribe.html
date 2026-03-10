@@ -332,7 +332,21 @@
           else if (p.is_done) labelEl.textContent = 'done \u2713';
           else                labelEl.textContent = pct + '%';
         }
-        if (pathEl && p.md_path) pathEl.textContent = p.md_path;
+        if (pathEl && p.error) {
+          clearChildren(pathEl);
+          const msg = document.createTextNode('Transcription failed. Audio saved at: ');
+          pathEl.appendChild(msg);
+          if (p.wav_path) {
+            const pathSpan = document.createElement('span');
+            pathSpan.className = 'copyable-path';
+            pathSpan.textContent = p.wav_path;
+            pathSpan.title = 'Click to copy';
+            pathSpan.addEventListener('click', () => navigator.clipboard.writeText(p.wav_path));
+            pathEl.appendChild(pathSpan);
+          }
+        } else if (pathEl && p.md_path) {
+          pathEl.textContent = p.md_path;
+        }
         if (!p.is_done) allDone = false;
         if (p.is_done && p.md_path) {
           const wrap = el('open-wrap-' + p.model_name);

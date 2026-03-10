@@ -176,15 +176,37 @@ class ScribeController:
                 f"Cannot stop: controller is in state '{self._state.value}'"
             )
 
-        wav_path = self._audio.stop()
         notes = self._notes.notes
         save_folder = self.save_path
         downloaded_models = [
             m for m in self._selected_models if self._model.is_downloaded(m)
         ]
 
+        try:
+            wav_path = self._audio.stop()
+        except Exception as exc:
+            logger.error("Audio stop/save failed: %s", exc, exc_info=True)
+            wav_path = None
+
         if not downloaded_models:
             return self._stop_no_model(wav_path, save_folder)
+
+        if wav_path is None:
+            error_msg = "Recording failed to save. No audio file was created."
+            with self._lock:
+                self._progress = [
+                    ModelProgress(model_name=m, error=error_msg, is_done=True)
+                    for m in downloaded_models
+                ]
+            result = ScribeResult(
+                wav_path=None,
+                transcripts=self._progress,
+                is_no_model_mode=False,
+                save_folder=save_folder,
+            )
+            self._result = result
+            self._state = ControllerState.DONE
+            return result
 
         return self._stop_with_models(wav_path, downloaded_models, notes, save_folder)
 
