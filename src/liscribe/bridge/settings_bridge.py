@@ -203,7 +203,7 @@ class SettingsBridge:
         """Open the given System Settings pane (microphone, accessibility, input_monitoring)."""
         _perms.open_system_settings(pane)
 
-    def get_python_paths(self) -> dict:
+    def get_python_paths(self) -> dict[str, str]:
         """Return Python binary paths for Input Monitoring setup guidance."""
         return _perms.get_python_executable_paths()
 

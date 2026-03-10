@@ -11,6 +11,7 @@ system commands. Fails gracefully on non-macOS and when frameworks are absent.
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 import sys
 
@@ -175,7 +176,6 @@ def get_python_executable_paths() -> dict[str, str]:
     Both are returned because macOS Input Monitoring may show either one depending
     on the Python installation (homebrew, pyenv, bundled .app, etc.).
     """
-    import os
     executable = sys.executable
     real_path = os.path.realpath(executable)
     return {

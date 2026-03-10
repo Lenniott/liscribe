@@ -596,7 +596,7 @@
           list.appendChild(guidance);
 
           pywebview.api.get_python_paths().then(function(paths) {
-            const container = document.getElementById('im-paths');
+            const container = pathsContainer;
             if (!container || !paths) return;
             container.textContent = '';
             const pathsToShow = [];
