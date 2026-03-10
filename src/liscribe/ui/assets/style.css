@@ -678,6 +678,42 @@ input[type="checkbox"] {
   border-radius: 8px;
 }
 
+/* Input Monitoring setup guidance block */
+.input-monitoring-guidance {
+  padding: 10px 12px;
+  border-left: 3px solid var(--accent-orange);
+  margin: 4px 0 8px 0;
+  font-size: 12px;
+}
+
+.im-guidance-text {
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.im-paths {
+  margin-bottom: 10px;
+}
+
+.im-path-row {
+  margin-bottom: 4px;
+}
+
+/* .copyable-path already defined above; extend with copied state */
+.copyable-path.copied {
+  color: var(--accent-green);
+}
+
+kbd {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
 
 /* ── § VIEW ────────────────────────────────────────────────── */
 /* Multi-view panels: only the .active view is shown           */

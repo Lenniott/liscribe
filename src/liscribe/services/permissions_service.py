@@ -165,6 +165,25 @@ def has_dictate_permissions() -> tuple[bool, list[str]]:
     return (len(missing) == 0, missing)
 
 
+def get_python_executable_paths() -> dict[str, str]:
+    """Return the current Python executable paths for Input Monitoring guidance.
+
+    Returns two paths:
+    - "executable": sys.executable (the running binary, possibly a symlink)
+    - "real_path": os.path.realpath(sys.executable) (resolved through all symlinks)
+
+    Both are returned because macOS Input Monitoring may show either one depending
+    on the Python installation (homebrew, pyenv, bundled .app, etc.).
+    """
+    import os
+    executable = sys.executable
+    real_path = os.path.realpath(executable)
+    return {
+        "executable": executable,
+        "real_path": real_path,
+    }
+
+
 def open_system_settings(pane: str) -> None:
     """Open the specified macOS System Settings pane.
 

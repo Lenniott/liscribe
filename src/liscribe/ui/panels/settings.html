@@ -565,6 +565,66 @@
         }
         row.appendChild(span2);
         list.appendChild(row);
+        if (key === 'input_monitoring' && !perms[key]) {
+          const guidance = document.createElement('div');
+          guidance.className = 'input-monitoring-guidance';
+
+          const guidanceText = document.createElement('p');
+          guidanceText.className = 'im-guidance-text';
+          guidanceText.appendChild(document.createTextNode('Open System Settings \u2192 Privacy & Security \u2192 Input Monitoring. Click +. In the file picker, press '));
+          const kbd = document.createElement('kbd');
+          kbd.textContent = '\u2318\u21E7G';
+          guidanceText.appendChild(kbd);
+          guidanceText.appendChild(document.createTextNode(' to type a path directly, then paste one of the paths below.'));
+          guidance.appendChild(guidanceText);
+
+          const pathsContainer = document.createElement('div');
+          pathsContainer.className = 'im-paths';
+          pathsContainer.id = 'im-paths';
+          const loadingSpan = document.createElement('span');
+          loadingSpan.className = 'loading-text';
+          loadingSpan.textContent = 'Loading paths\u2026';
+          pathsContainer.appendChild(loadingSpan);
+          guidance.appendChild(pathsContainer);
+
+          const openImBtn = document.createElement('button');
+          openImBtn.className = 'btn btn-sm btn-ghost';
+          openImBtn.id = 'btn-open-im-settings';
+          openImBtn.textContent = 'Open Input Monitoring Settings \u2192';
+          guidance.appendChild(openImBtn);
+
+          list.appendChild(guidance);
+
+          pywebview.api.get_python_paths().then(function(paths) {
+            const container = document.getElementById('im-paths');
+            if (!container || !paths) return;
+            container.textContent = '';
+            const pathsToShow = [];
+            if (paths.executable) pathsToShow.push(paths.executable);
+            if (paths.real_path && paths.real_path !== paths.executable) {
+              pathsToShow.push(paths.real_path);
+            }
+            pathsToShow.forEach(function(p) {
+              const pathRow = document.createElement('div');
+              pathRow.className = 'im-path-row';
+              const pathSpan = document.createElement('span');
+              pathSpan.className = 'copyable-path';
+              pathSpan.textContent = p;
+              pathSpan.title = 'Click to copy';
+              pathSpan.addEventListener('click', function() {
+                navigator.clipboard.writeText(p);
+                pathSpan.classList.add('copied');
+                setTimeout(function() { pathSpan.classList.remove('copied'); }, 1500);
+              });
+              pathRow.appendChild(pathSpan);
+              container.appendChild(pathRow);
+            });
+          }).catch(function() {});
+
+          openImBtn.addEventListener('click', function() {
+            pywebview.api.open_system_settings('input_monitoring');
+          });
+        }
       });
     } catch (e) { console.error('get_permissions:', e); }
     try {
