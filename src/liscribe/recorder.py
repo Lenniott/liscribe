@@ -32,6 +32,7 @@ from liscribe.platform_setup import (
     get_current_output_device,
     set_output_device,
 )
+from liscribe.power import acquire_recording_assertion, release_recording_assertion
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +197,7 @@ class RecordingSession:
         self._speaker_enabled_ever: bool = speaker
         self._mic_first_adc_time: float | None = None
         self._speaker_first_adc_time: float | None = None
+        self._power_assertion: int = 0
 
     def _mic_callback(self, indata: np.ndarray, frames: int, time_info: Any, status: sd.CallbackFlags) -> None:
         if status:
@@ -351,6 +353,7 @@ class RecordingSession:
             return None
 
         self._start_time = time.time()
+        self._power_assertion = acquire_recording_assertion()
         mode = "mic + speaker" if self.speaker else "mic"
         print(f"Recording ({mode})... Mic: {dev_name} | {self.sample_rate}Hz {self.channels}ch")
         if self.speaker:
@@ -393,6 +396,9 @@ class RecordingSession:
                 stream.close()
         self._mic_stream = None
         self._speaker_stream = None
+
+        release_recording_assertion(self._power_assertion)
+        self._power_assertion = 0
 
         # Restore audio output
         self._restore_audio_output()
