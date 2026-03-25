@@ -16,22 +16,6 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
-def _post_webhook(url: str, payload: dict) -> None:
-    """Fire-and-forget HTTP POST of *payload* as JSON to *url*. Logs on failure."""
-    import urllib.request
-
-    try:
-        data = json.dumps(payload, separators=(",", ":")).encode()
-        req = urllib.request.Request(
-            url,
-            data=data,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=10):
-            pass
-    except Exception as exc:
-        logger.warning("Webhook POST to %r failed: %s", url, exc)
 
 from liscribe.config import load_config
 from liscribe.notes import Note
@@ -225,20 +209,16 @@ def main() -> None:
     result_file.write_text(f"OK:{md_path}", encoding="utf-8")
 
     webhook_url = cfg.get("webhook_url")
-    if webhook_url:
-        try:
-            md_text = Path(md_path).read_text(encoding="utf-8")
-        except Exception:
-            md_text = result.text or ""
-        _post_webhook(
+    if webhook_url and cfg.get("webhook_auto_send_transcripts", False):
+        from liscribe import webhook as _webhook
+        _webhook.send_transcript(
             webhook_url,
-            {
-                "workflow": "scribe",
-                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                "word_count": result.word_count,
-                "duration_seconds": round(result.duration, 1),
-                "text": md_text,
-            },
+            md_path,
+            source="scribe",
+            word_count=result.word_count if hasattr(result, "word_count") else 0,
+            duration_seconds=round(result.duration, 1) if hasattr(result, "duration") else 0.0,
+            auth_header_name=cfg.get("webhook_auth_header_name", ""),
+            auth_header_value=cfg.get("webhook_auth_header_value", ""),
         )
 
 

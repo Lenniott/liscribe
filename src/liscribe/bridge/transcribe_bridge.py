@@ -57,10 +57,13 @@ class TranscribeBridge:
     def get_initial_state(self) -> dict:
         """Return prefill for the panel (audio_path, output_folder). Consumed on first call.
         Paths are returned in display form (~ for home) for anonymity.
+        Also includes webhook settings for the UI to determine button visibility.
         """
         state = self._controller.get_prefill()
         state["audio_path"] = to_display(state.get("audio_path") or "")
         state["output_folder"] = to_display(state.get("output_folder") or "")
+        state["has_webhook"] = bool(self._config.webhook_url)
+        state["webhook_auto_send"] = self._config.webhook_auto_send_transcripts
         return state
 
     # ------------------------------------------------------------------
@@ -161,6 +164,17 @@ class TranscribeBridge:
             {**p, "md_path": to_display(p.get("md_path")) if p.get("md_path") else p.get("md_path")}
             for p in raw
         ]
+
+    # ------------------------------------------------------------------
+    # Webhook manual send
+    # ------------------------------------------------------------------
+
+    def send_webhook(self, md_path: str) -> dict:
+        """Manually send a transcript to the configured webhook.
+
+        Returns {ok: True} or {ok: False, error: str}.
+        """
+        return self._controller.send_webhook_for_transcript(from_display(md_path))
 
     # ------------------------------------------------------------------
     # Open transcript in external app

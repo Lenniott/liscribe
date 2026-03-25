@@ -66,8 +66,10 @@
     const INIT_API_DELAY_MS = 80;
     const RETRY_DELAY_MS = 250;
     let progressInterval = null;
+    let webhookPollInterval = null;
     let currentAudioPath = null;
     let currentFilename = '';
+    let webhookState = { has_webhook: false, webhook_auto_send: false };
 
     function el(id) { return document.getElementById(id); }
     function clearChildren(node) { while (node.firstChild) node.removeChild(node.firstChild); }
@@ -95,6 +97,8 @@
           el('output-folder-display').textContent = state.output_folder;
           await pywebview.api.set_output_folder(state.output_folder);
         }
+        webhookState.has_webhook = !!state.has_webhook;
+        webhookState.webhook_auto_send = !!state.webhook_auto_send;
       } catch (err) { console.error('get_initial_state:', err); }
     }
 
@@ -187,6 +191,18 @@
       } catch (err) { console.error('pollProgress:', err); }
     }
 
+    async function pollDoneWebhookStatus() {
+      try {
+        const progress = await pywebview.api.get_progress();
+        updateDoneWebhookStatus(progress);
+        const allSentOrFailed = progress.every(p => !p.md_path || p.webhook_sent || p.webhook_error);
+        if (allSentOrFailed) {
+          clearInterval(webhookPollInterval);
+          webhookPollInterval = null;
+        }
+      } catch (err) { console.error('pollDoneWebhookStatus:', err); }
+    }
+
     function showDoneView(progress) {
       el('done-filename').textContent = currentFilename;
       const list = el('done-list');
@@ -214,9 +230,67 @@
           openBtn.textContent = 'Open Transcript';
           openBtn.addEventListener('click', () => pywebview.api.open_transcript(p.md_path));
           list.appendChild(openBtn);
+
+          if (webhookState.has_webhook) {
+            if (webhookState.webhook_auto_send) {
+              // Auto-send: show a status label that updates via polling
+              const webhookStatus = document.createElement('span');
+              webhookStatus.className = 'webhook-status';
+              webhookStatus.id = 'wh-status-' + p.model_name;
+              webhookStatus.textContent = p.webhook_sent ? 'sent ✓' : (p.webhook_error ? 'send failed' : 'sending…');
+              list.appendChild(webhookStatus);
+            } else {
+              // Manual send: show a button unless already sent
+              const sendBtn = document.createElement('button');
+              sendBtn.type = 'button';
+              sendBtn.className = 'btn btn-secondary send-webhook-btn';
+                // Keep a small gap from the preceding "Open Transcript" button.
+                sendBtn.style.marginLeft = '8px';
+              sendBtn.id = 'wh-btn-' + p.model_name;
+              const mdPath = p.md_path;
+              const modelName = p.model_name;
+              if (p.webhook_sent) {
+                sendBtn.textContent = 'sent ✓';
+                sendBtn.disabled = true;
+              } else {
+                sendBtn.textContent = 'Send to webhook';
+                sendBtn.addEventListener('click', async function () {
+                  if (sendBtn.disabled) return;
+                  sendBtn.disabled = true;
+                  sendBtn.textContent = 'Sending…';
+                  try {
+                    const result = await pywebview.api.send_webhook(mdPath);
+                    sendBtn.textContent = result.ok ? 'sent ✓' : 'send failed — retry?';
+                    if (!result.ok) {
+                      sendBtn.disabled = false;
+                      console.error('Webhook send failed:', result.error);
+                    }
+                  } catch (err) {
+                    sendBtn.textContent = 'send failed — retry?';
+                    sendBtn.disabled = false;
+                    console.error('Webhook send error:', err);
+                  }
+                });
+              }
+              list.appendChild(sendBtn);
+            }
+          }
         }
       });
       showView('view-done');
+      if (webhookState.has_webhook && webhookState.webhook_auto_send) {
+        webhookPollInterval = setInterval(pollDoneWebhookStatus, POLL_MS);
+      }
+    }
+
+    function updateDoneWebhookStatus(progress) {
+      progress.forEach(p => {
+        if (!p.md_path || !webhookState.has_webhook || !webhookState.webhook_auto_send) return;
+        const statusEl = el('wh-status-' + p.model_name);
+        if (!statusEl) return;
+        if (p.webhook_sent) statusEl.textContent = 'sent ✓';
+        else if (p.webhook_error) statusEl.textContent = 'send failed';
+      });
     }
 
     el('browse-file-btn').addEventListener('click', async function () {

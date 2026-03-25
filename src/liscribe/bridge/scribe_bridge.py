@@ -17,6 +17,7 @@ from liscribe.path_display import from_display, to_display
 if TYPE_CHECKING:
     from liscribe.controllers.scribe_controller import ScribeController
     from liscribe.services.audio_service import AudioService
+    from liscribe.services.config_service import ConfigService
     from liscribe.services.model_service import ModelService
 
 logger = logging.getLogger(__name__)
@@ -55,11 +56,13 @@ class ScribeBridge:
         controller: ScribeController,
         model: ModelService,
         audio: AudioService,
+        config: ConfigService | None = None,
         app_actions: ScribeAppActions | None = None,
     ) -> None:
         self._controller = controller
         self._model = model
         self._audio = audio
+        self._config = config
         self._app_actions = app_actions
 
     # ------------------------------------------------------------------
@@ -221,7 +224,20 @@ class ScribeBridge:
             "save_path": to_display(self._controller.save_path),
             "selected_models": self._controller.selected_models,
             "current_mic": self._controller.current_mic,
+            "has_webhook": bool(self._config.webhook_url) if self._config else False,
+            "webhook_auto_send": (self._config.webhook_auto_send_transcripts if self._config else False),
         }
+
+    # ------------------------------------------------------------------
+    # Webhook manual send
+    # ------------------------------------------------------------------
+
+    def send_webhook(self, md_path: str) -> dict:
+        """Manually send a transcript to the configured webhook.
+
+        Returns {ok: True} or {ok: False, error: str}.
+        """
+        return self._controller.send_webhook_for_transcript(from_display(md_path))
 
     # ------------------------------------------------------------------
     # Cross-panel navigation

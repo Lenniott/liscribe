@@ -13,6 +13,7 @@
       <button type="button" class="settings-tab" data-tab="models">Models</button>
       <button type="button" class="settings-tab" data-tab="hotkeys">Hotkeys</button>
       <button type="button" class="settings-tab" data-tab="replacements">Replacements</button>
+      <button type="button" class="settings-tab" data-tab="webhook">Webhook</button>
       <button type="button" class="settings-tab" data-tab="deps">Dependencies</button>
       <button type="button" class="settings-tab" data-tab="help">Help</button>
     </nav>
@@ -56,15 +57,11 @@
           <div id="open-transcript-app-display" class="app-display">Default app</div>
           <button type="button" class="btn btn-secondary" id="change-app">Change</button>
         </div>
-        <div class="section-label mt-16">Webhook URL</div>
-        <div class="form-row">
-          <input type="url" id="webhook-url" placeholder="https://…" style="width:100%">
-        </div>
-        <div class="section-label mt-16">Speaker labels</div>
+        <div class="section-label mt-16">Scribe labels</div>
         <div class="form-row">
           <label>Mic&nbsp;<input type="text" id="mic-label" style="width:6em" maxlength="20" placeholder="in"></label>
           &nbsp;&nbsp;
-          <label>Far-end&nbsp;<input type="text" id="speaker-label" style="width:6em" maxlength="20" placeholder="out"></label>
+          <label>Speaker&nbsp;<input type="text" id="speaker-label" style="width:6em" maxlength="20" placeholder="out"></label>
         </div>
       </div>
 
@@ -163,6 +160,50 @@
         </div>
       </div>
 
+      <div id="pane-webhook" class="settings-tab-pane">
+        <div class="section-label">Webhook URL</div>
+        <div class="form-row">
+          <input type="url" id="webhook-url" class="input-text" placeholder="https://…" style="width:100%">
+        </div>
+        <p class="text-muted mt-4">POST transcripts and dictations to this URL when processing finishes.</p>
+        <div class="section-label mt-16">Auth header name</div>
+        <div class="form-row">
+          <input type="text" id="webhook-auth-header-name" class="input-text" placeholder="Authorization" style="width:100%">
+        </div>
+        <div class="section-label mt-8">Auth header value</div>
+        <div class="form-row">
+          <input type="password" id="webhook-auth-header-value" class="input-text" placeholder="Bearer …" style="width:100%" autocomplete="off">
+        </div>
+        <div class="section-label mt-16">Auto-send Scribe &amp; Transcribe</div>
+        <div class="form-row">
+          <label class="toggle">
+            <input type="checkbox" id="webhook-auto-send">
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span id="webhook-auto-send-label">OFF</span>
+          </label>
+        </div>
+        <p class="text-muted mt-4">When ON, Scribe and Transcribe automatically POST the .md file on completion. When OFF, a Send button appears on the done screen.</p>
+        <div class="section-label mt-16">Auto-send Dictate</div>
+        <div class="form-row">
+          <label class="toggle">
+            <input type="checkbox" id="webhook-auto-send-dictate">
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span id="webhook-auto-send-dictate-label">OFF</span>
+          </label>
+        </div>
+        <p class="text-muted mt-4">When ON, Dictate automatically POSTs the transcribed text to the webhook on completion.</p>
+        <div class="section-label mt-20">Payload shapes</div>
+        <p class="text-muted mt-4">Dictate sends JSON:</p>
+        <pre class="webhook-payload-preview">{ "source": "dictate", "text": "…", "word_count": 12, "duration_seconds": 4.2, "timestamp": "2026-01-01T12:00:00" }</pre>
+        <p class="text-muted mt-8">Scribe &amp; Transcribe send <code>multipart/form-data</code>:</p>
+        <pre class="webhook-payload-preview">source:           "scribe"
+file:             transcript.md
+word_count:       84
+duration_seconds: 62.3
+model:            base
+created_at:       2026-01-01T12:00:00</pre>
+      </div>
+
       <div id="pane-deps" class="settings-tab-pane">
         <div class="section-label">Permissions</div>
         <div id="permissions-list"></div>
@@ -230,7 +271,7 @@
 <script>
 (function() {
   const API_DELAY_MS = 80;
-  const TAB_IDS = ['general', 'models', 'hotkeys', 'replacements', 'deps', 'help'];
+  const TAB_IDS = ['general', 'models', 'hotkeys', 'replacements', 'webhook', 'deps', 'help'];
   let config = {};
   let mics = [];
 
@@ -248,6 +289,7 @@
     if (tabId === 'deps') refreshPermissions();
     if (tabId === 'models') refreshModels();
     if (tabId === 'replacements') refreshReplacements();
+    if (tabId === 'webhook') applyConfigToWebhook();
   }
 
   async function loadConfig() {
@@ -275,7 +317,6 @@
     el('start-on-login-label').textContent = el('start-on-login').checked ? 'ON' : 'OFF';
     const appName = config.open_transcript_app || 'default';
     el('open-transcript-app-display').textContent = appName === 'default' ? 'Default app' : appName;
-    el('webhook-url').value = config.webhook_url || '';
     el('mic-label').value = config.mic_label || '';
     el('speaker-label').value = config.speaker_label || '';
 
@@ -300,6 +341,18 @@
     el('launch-hotkey-display').textContent = formatHotkey(config.launch_hotkey) || '⌃ ⌥ L';
     const dk = config.dictation_hotkey || 'left_ctrl';
     el('dictation-hotkey-display').textContent = dk.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+  }
+
+  function applyConfigToWebhook() {
+    el('webhook-url').value = config.webhook_url || '';
+    el('webhook-auth-header-name').value = config.webhook_auth_header_name || '';
+    el('webhook-auth-header-value').value = config.webhook_auth_header_value || '';
+    var autoSend = config.webhook_auto_send_transcripts === true;
+    el('webhook-auto-send').checked = autoSend;
+    el('webhook-auto-send-label').textContent = autoSend ? 'ON' : 'OFF';
+    var autoSendDictate = config.webhook_auto_send_dictate === true;
+    el('webhook-auto-send-dictate').checked = autoSendDictate;
+    el('webhook-auto-send-dictate-label').textContent = autoSendDictate ? 'ON' : 'OFF';
   }
 
   async function saveConfigKey(key, value) {
@@ -701,6 +754,18 @@
     if (result && result.name) { await saveConfigKey('open_transcript_app', result.name); config.open_transcript_app = result.name; el('open-transcript-app-display').textContent = result.name; }
   });
   el('webhook-url').addEventListener('change', function() { saveConfigKey('webhook_url', el('webhook-url').value || null); });
+  el('webhook-auth-header-name').addEventListener('change', function() { saveConfigKey('webhook_auth_header_name', el('webhook-auth-header-name').value || ''); });
+  el('webhook-auth-header-value').addEventListener('change', function() { saveConfigKey('webhook_auth_header_value', el('webhook-auth-header-value').value || ''); });
+  el('webhook-auto-send').addEventListener('change', function() {
+    var v = el('webhook-auto-send').checked;
+    saveConfigKey('webhook_auto_send_transcripts', v);
+    el('webhook-auto-send-label').textContent = v ? 'ON' : 'OFF';
+  });
+  el('webhook-auto-send-dictate').addEventListener('change', function() {
+    var v = el('webhook-auto-send-dictate').checked;
+    saveConfigKey('webhook_auto_send_dictate', v);
+    el('webhook-auto-send-dictate-label').textContent = v ? 'ON' : 'OFF';
+  });
   el('mic-label').addEventListener('change', function() { saveConfigKey('mic_label', el('mic-label').value || null); });
   el('speaker-label').addEventListener('change', function() { saveConfigKey('speaker_label', el('speaker-label').value || null); });
   /* Hotkey change workflow: show picker on Change, save and refresh on pick */

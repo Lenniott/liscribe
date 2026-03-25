@@ -306,6 +306,38 @@ class ConfigService:
         self.set("webhook_url", url or None)
 
     @property
+    def webhook_auth_header_name(self) -> str:
+        return str(self._values.get("webhook_auth_header_name") or "")
+
+    @webhook_auth_header_name.setter
+    def webhook_auth_header_name(self, name: str) -> None:
+        self.set("webhook_auth_header_name", name or "")
+
+    @property
+    def webhook_auth_header_value(self) -> str:
+        return str(self._values.get("webhook_auth_header_value") or "")
+
+    @webhook_auth_header_value.setter
+    def webhook_auth_header_value(self, value: str) -> None:
+        self.set("webhook_auth_header_value", value or "")
+
+    @property
+    def webhook_auto_send_transcripts(self) -> bool:
+        return bool(self._values.get("webhook_auto_send_transcripts", False))
+
+    @webhook_auto_send_transcripts.setter
+    def webhook_auto_send_transcripts(self, value: bool) -> None:
+        self.set("webhook_auto_send_transcripts", value)
+
+    @property
+    def webhook_auto_send_dictate(self) -> bool:
+        return bool(self._values.get("webhook_auto_send_dictate", False))
+
+    @webhook_auto_send_dictate.setter
+    def webhook_auto_send_dictate(self, value: bool) -> None:
+        self.set("webhook_auto_send_dictate", value)
+
+    @property
     def mic_label(self) -> str:
         return str(self._values.get("mic_label") or "in")
 

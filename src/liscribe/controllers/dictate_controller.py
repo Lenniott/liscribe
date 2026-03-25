@@ -123,34 +123,22 @@ def _notify(title: str, message: str) -> None:
 
 
 def _post_webhook_dictate(
-    url: str, text: str, recording_start: float | None
+    url: str, text: str, recording_start: float | None,
+    auth_header_name: str = "", auth_header_value: str = "",
 ) -> None:
     """Fire-and-forget POST of dictate result to webhook URL. Logs on failure."""
-    import json
-    import urllib.request
+    from liscribe import webhook as _webhook
 
     duration = (
         round(time.monotonic() - recording_start, 1) if recording_start is not None else 0.0
     )
-    payload = {
-        "workflow": "dictate",
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
-        "word_count": len(text.split()),
-        "duration_seconds": duration,
-        "text": text,
-    }
-    try:
-        data = json.dumps(payload, separators=(",", ":")).encode()
-        req = urllib.request.Request(
-            url,
-            data=data,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=10):
-            pass
-    except Exception as exc:
-        logger.warning("Webhook POST to %r failed: %s", url, exc)
+    _webhook.send_dictation(
+        url,
+        text,
+        duration_seconds=duration,
+        auth_header_name=auth_header_name,
+        auth_header_value=auth_header_value,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -436,11 +424,13 @@ class DictateController:
             )
 
             webhook_url = self._config.webhook_url
-            if webhook_url:
+            if webhook_url and self._config.webhook_auto_send_dictate:
                 _post_webhook_dictate(
                     webhook_url,
                     text=text,
                     recording_start=recording_start,
+                    auth_header_name=self._config.webhook_auth_header_name,
+                    auth_header_value=self._config.webhook_auth_header_value,
                 )
 
             target = self._target_bundle_id

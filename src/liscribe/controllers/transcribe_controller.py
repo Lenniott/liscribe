@@ -39,6 +39,8 @@ class ModelProgress:
     md_path: str | None = None
     error: str | None = None
     is_done: bool = False
+    webhook_sent: bool = False
+    webhook_error: str | None = None
 
 
 @dataclass
@@ -201,6 +203,10 @@ class TranscribeController:
                     entry.progress = 1.0
                     entry.md_path = str(md_path)
                     entry.is_done = True
+
+                if self._config.webhook_url and self._config.webhook_auto_send_transcripts:
+                    self._do_send_webhook(entry, str(md_path), source="scribe")
+
             except Exception as exc:
                 logger.exception("Transcription failed for model %s", model_name)
                 with self._lock:
@@ -209,6 +215,60 @@ class TranscribeController:
 
         with self._lock:
             self._state = TranscribeState.DONE
+
+    def _do_send_webhook(self, entry: ModelProgress, md_path: str, source: str) -> None:
+        """Send the transcript file to the webhook and update entry status."""
+        from liscribe import webhook as _webhook
+
+        try:
+            _webhook.send_transcript(
+                self._config.webhook_url,  # type: ignore[arg-type]
+                md_path,
+                source=source,
+                auth_header_name=self._config.webhook_auth_header_name,
+                auth_header_value=self._config.webhook_auth_header_value,
+            )
+            with self._lock:
+                entry.webhook_sent = True
+        except Exception as exc:
+            logger.warning("Webhook send failed for %s: %s", md_path, exc)
+            with self._lock:
+                entry.webhook_error = str(exc)
+
+    def send_webhook_for_transcript(self, md_path: str) -> dict:
+        """Manually send a completed transcript to the webhook.
+
+        Idempotent: does nothing and returns ok=True if already sent.
+        Returns {ok: True} or {ok: False, error: str}.
+        """
+        url = self._config.webhook_url
+        if not url:
+            return {"ok": False, "error": "No webhook URL configured"}
+
+        with self._lock:
+            entry = next((p for p in self._progress if p.md_path == md_path), None)
+            if entry is None:
+                return {"ok": False, "error": "Transcript not found in current run"}
+            if entry.webhook_sent:
+                return {"ok": True}
+
+        try:
+            from liscribe import webhook as _webhook
+            _webhook.send_transcript(
+                url,
+                md_path,
+                source="scribe",
+                auth_header_name=self._config.webhook_auth_header_name,
+                auth_header_value=self._config.webhook_auth_header_value,
+            )
+            with self._lock:
+                entry.webhook_sent = True
+                entry.webhook_error = None
+            return {"ok": True}
+        except Exception as exc:
+            with self._lock:
+                entry.webhook_error = str(exc)
+            return {"ok": False, "error": str(exc)}
 
     def get_progress(self) -> list[dict]:
         """Return JSON-serialisable progress for the UI."""
@@ -220,6 +280,8 @@ class TranscribeController:
                     "md_path": p.md_path,
                     "error": p.error,
                     "is_done": p.is_done,
+                    "webhook_sent": p.webhook_sent,
+                    "webhook_error": p.webhook_error,
                 }
                 for p in self._progress
             ]

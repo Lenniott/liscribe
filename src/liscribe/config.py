@@ -106,6 +106,26 @@ DEFAULTS: dict[str, dict[str, Any]] = {
         "value": False,
         "description": "When false (default), delete the WAV file after successful transcription. Set true to keep the WAV.",
     },
+    "webhook_url": {
+        "value": None,
+        "description": "URL to POST transcripts/dictations to. Leave null to disable.",
+    },
+    "webhook_auth_header_name": {
+        "value": "",
+        "description": "HTTP header name for webhook authentication, e.g. Authorization.",
+    },
+    "webhook_auth_header_value": {
+        "value": "",
+        "description": "HTTP header value for webhook authentication, e.g. Bearer <token>.",
+    },
+    "webhook_auto_send_transcripts": {
+        "value": False,
+        "description": "When true, Scribe and Transcribe automatically POST the .md file to the webhook on completion.",
+    },
+    "webhook_auto_send_dictate": {
+        "value": False,
+        "description": "When true, Dictate automatically POSTs the transcribed text to the webhook on completion.",
+    },
 }
 
 

@@ -209,7 +209,7 @@ h3 { font-size: 13px; font-weight: 600; }
 /* ── § FORMS ───────────────────────────────────────────────── */
 
 select,
-input[type="text"] {
+input {
   background: var(--bg-input);
   color: var(--text);
   border: 1px solid var(--border);
@@ -222,7 +222,7 @@ input[type="text"] {
 }
 
 select:focus,
-input[type="text"]:focus { border-color: var(--accent-blue); }
+input:focus { border-color: var(--accent-blue); }
 
 textarea {
   background: var(--bg-input);
@@ -1104,3 +1104,18 @@ body.panel-dictate {
 .text-muted { color: var(--text-muted); font-size: 13px; }
 .text-sm    { font-size: 12px; }
 .text-xs    { font-size: 11px; }
+
+/* Webhook payload preview */
+.webhook-payload-preview {
+  background: var(--bg-secondary, #1c1c1e);
+  border: 1px solid var(--border, #3a3a3c);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

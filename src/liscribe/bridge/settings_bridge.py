@@ -114,6 +114,10 @@ class SettingsBridge:
             "speaker_device": self._config.speaker_device,
             "blackhole_device": self._config.blackhole_device,
             "webhook_url": self._config.webhook_url,
+            "webhook_auth_header_name": self._config.webhook_auth_header_name,
+            "webhook_auth_header_value": self._config.webhook_auth_header_value,
+            "webhook_auto_send_transcripts": self._config.webhook_auto_send_transcripts,
+            "webhook_auto_send_dictate": self._config.webhook_auto_send_dictate,
             "mic_label": self._config.mic_label,
             "speaker_label": self._config.speaker_label,
         }

@@ -324,6 +324,7 @@ class LiscribeApp(rumps.App):
             controller=self._scribe_ctrl,
             model=model,
             audio=audio,
+            config=config,
             app_actions=_ScribeAppActionsImpl(self),
         )
 

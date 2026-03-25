@@ -118,6 +118,7 @@
   let pendingWavPath   = null;
   let pendingSaveFolder = null;
   let isRecording      = true;
+  let webhookState     = { has_webhook: false, webhook_auto_send: false };
 
   // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -343,6 +344,52 @@
             openBtn.textContent = 'Open Transcript';
             openBtn.addEventListener('click', () => pywebview.api.open_transcript(p.md_path));
             wrap.appendChild(openBtn);
+
+            if (webhookState.has_webhook) {
+              if (webhookState.webhook_auto_send) {
+                const statusSpan = document.createElement('span');
+                statusSpan.className = 'webhook-status';
+                statusSpan.id = 'wh-status-' + p.model_name;
+                statusSpan.textContent = p.webhook_sent ? 'sent \u2713' : (p.webhook_error ? 'send failed' : 'sending\u2026');
+                wrap.appendChild(statusSpan);
+              } else {
+                const sendBtn = document.createElement('button');
+                sendBtn.type = 'button';
+                sendBtn.className = 'btn btn-secondary send-webhook-btn';
+                sendBtn.id = 'wh-btn-' + p.model_name;
+                const mdPath = p.md_path;
+                if (p.webhook_sent) {
+                  sendBtn.textContent = 'sent \u2713';
+                  sendBtn.disabled = true;
+                } else {
+                  sendBtn.textContent = 'Send to webhook';
+                  sendBtn.addEventListener('click', async function () {
+                    if (sendBtn.disabled) return;
+                    sendBtn.disabled = true;
+                    sendBtn.textContent = 'Sending\u2026';
+                    try {
+                      const result = await pywebview.api.send_webhook(mdPath);
+                      sendBtn.textContent = result.ok ? 'sent \u2713' : 'send failed \u2014 retry?';
+                      if (!result.ok) {
+                        sendBtn.disabled = false;
+                        console.error('Webhook send failed:', result.error);
+                      }
+                    } catch (err) {
+                      sendBtn.textContent = 'send failed \u2014 retry?';
+                      sendBtn.disabled = false;
+                      console.error('Webhook send error:', err);
+                    }
+                  });
+                }
+                wrap.appendChild(sendBtn);
+              }
+            }
+          } else if (webhookState.has_webhook && webhookState.webhook_auto_send) {
+            const statusEl = el('wh-status-' + p.model_name);
+            if (statusEl) {
+              if (p.webhook_sent) statusEl.textContent = 'sent \u2713';
+              else if (p.webhook_error) statusEl.textContent = 'send failed';
+            }
           }
         }
       });
@@ -478,6 +525,8 @@
     try {
       const state = await pywebview.api.get_state();
       el('save-path-display').textContent = state.save_path;
+      webhookState.has_webhook = !!state.has_webhook;
+      webhookState.webhook_auto_send = !!state.webhook_auto_send;
 
       const mics = await pywebview.api.get_mics();
       populateMicSelect(mics, state.is_using_fallback_mic, state.current_mic || null);
