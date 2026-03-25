@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-import plistlib
 import subprocess
 import sys
 from pathlib import Path
@@ -22,81 +20,70 @@ START_ON_LOGIN_KEY = "start_on_login"
 
 _LAUNCHD_PLIST = Path.home() / "Library/LaunchAgents/com.liscribe.app.plist"
 
-_CRASH_RECOVERY_LABEL = "com.liscribe.crashrecovery"
-_CRASH_RECOVERY_PLIST = Path.home() / "Library" / "LaunchAgents" / f"{_CRASH_RECOVERY_LABEL}.plist"
-_CRASH_RECOVERY_DISABLED_MARKER = Path(_config.CONFIG_DIR) / "crash_recovery_disabled"
+_CLEAN_EXIT_MARKER = Path(_config.CONFIG_DIR) / "clean_exit"
+_CRASH_RECOVERY_ENABLED_MARKER = Path(_config.CONFIG_DIR) / "crash_recovery_enabled"
 
 
 def is_crash_recovery_enabled() -> bool:
-    """Return True if the crash recovery LaunchAgent plist is installed on disk.
-
-    Uses plist file presence as a proxy for launchd registration state.
-    Returns False if user has explicitly disabled crash recovery (marker file present).
-    """
-    if _CRASH_RECOVERY_DISABLED_MARKER.exists():
-        return False
-    return _CRASH_RECOVERY_PLIST.exists()
+    """Return True if crash recovery watchdog is enabled."""
+    return _CRASH_RECOVERY_ENABLED_MARKER.exists()
 
 
-def install_crash_recovery_agent(bundle: Path) -> None:
-    """Write a KeepAlive LaunchAgent plist so launchd auto-restarts on crash.
+def enable_crash_recovery() -> None:
+    """Enable crash recovery by writing the enabled marker file."""
+    _CRASH_RECOVERY_ENABLED_MARKER.parent.mkdir(parents=True, exist_ok=True)
+    _CRASH_RECOVERY_ENABLED_MARKER.touch()
 
-    Idempotent: only writes if the plist does not already exist.
-    Only works when running as a .app bundle.
-    Respects explicit user opt-out (marker file created by uninstall_crash_recovery_agent).
-    """
-    # Honour explicit user opt-out (marker set by uninstall_crash_recovery_agent)
-    if _CRASH_RECOVERY_DISABLED_MARKER.exists():
-        return
-    if _CRASH_RECOVERY_PLIST.exists():
-        return
-    _CRASH_RECOVERY_PLIST.parent.mkdir(parents=True, exist_ok=True)
-    uid = os.getuid()
-    domain = f"gui/{uid}"
-    plist = {
-        "Label": _CRASH_RECOVERY_LABEL,
-        "ProgramArguments": ["open", "-a", str(bundle)],
-        "KeepAlive": True,
-        "RunAtLoad": False,
-    }
+
+def disable_crash_recovery() -> None:
+    """Disable crash recovery by removing the enabled marker file."""
+    _CRASH_RECOVERY_ENABLED_MARKER.unlink(missing_ok=True)
+
+
+def write_clean_exit_marker() -> None:
+    """Write the clean exit marker so the watchdog does not restart after a clean quit."""
     try:
-        with open(_CRASH_RECOVERY_PLIST, "wb") as f:
-            plistlib.dump(plist, f)
-        subprocess.run(
-            ["launchctl", "bootstrap", domain, str(_CRASH_RECOVERY_PLIST)],
-            check=True,
-            capture_output=True,
-            timeout=5,
-        )
-        # Remove opt-out marker since user is now opted in
-        _CRASH_RECOVERY_DISABLED_MARKER.unlink(missing_ok=True)
-        logger.info("Crash recovery agent installed: %s", _CRASH_RECOVERY_PLIST)
-    except Exception as exc:
-        logger.warning("Failed to install crash recovery agent: %s", exc)
-        _CRASH_RECOVERY_PLIST.unlink(missing_ok=True)
-        raise
-
-
-def uninstall_crash_recovery_agent() -> None:
-    """Remove the crash recovery LaunchAgent from launchd and disk."""
-    uid = os.getuid()
-    domain = f"gui/{uid}"
-    try:
-        subprocess.run(
-            ["launchctl", "bootout", domain, _CRASH_RECOVERY_LABEL],
-            capture_output=True,
-            timeout=5,
-        )
-    except Exception as exc:
-        logger.debug("bootout for crash recovery failed: %s", exc)
-    _CRASH_RECOVERY_PLIST.unlink(missing_ok=True)
-    # Write opt-out marker so auto-install on next launch is skipped
-    try:
-        _CRASH_RECOVERY_DISABLED_MARKER.parent.mkdir(parents=True, exist_ok=True)
-        _CRASH_RECOVERY_DISABLED_MARKER.touch()
+        _CLEAN_EXIT_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        _CLEAN_EXIT_MARKER.touch()
     except Exception:
         pass
-    logger.info("Crash recovery agent removed")
+
+
+def clear_clean_exit_marker() -> None:
+    """Remove the clean exit marker at startup so a previous clean exit is forgotten."""
+    _CLEAN_EXIT_MARKER.unlink(missing_ok=True)
+
+
+def spawn_crash_recovery_watchdog(pid: int) -> None:
+    """Spawn a detached watchdog subprocess that restarts liscribe if it crashes.
+
+    The watchdog polls the given PID every 0.5s. When the process dies it waits
+    briefly for atexit to run, then checks for the clean exit marker. If the
+    marker is absent (crash / SIGKILL / unhandled exception) it relaunches
+    ``python -m liscribe`` after a 2-second delay.
+    """
+    script = f"""
+import os, sys, time, pathlib
+pid = {pid}
+marker = pathlib.Path({str(_CLEAN_EXIT_MARKER)!r})
+while True:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        break
+    time.sleep(0.5)
+time.sleep(0.2)
+if not marker.exists():
+    time.sleep(2)
+    os.execv({sys.executable!r}, [{sys.executable!r}, '-m', 'liscribe'])
+"""
+    subprocess.Popen(
+        [sys.executable, "-c", script],
+        start_new_session=True,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 def _get_app_bundle_path() -> Path | None:

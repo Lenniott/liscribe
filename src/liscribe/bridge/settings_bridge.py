@@ -386,25 +386,15 @@ class SettingsBridge:
     # ------------------------------------------------------------------
 
     def get_crash_recovery_enabled(self) -> bool:
-        """Return True if the crash recovery LaunchAgent plist is installed."""
+        """Return True if crash recovery is enabled."""
         from liscribe.services.config_service import is_crash_recovery_enabled
         return is_crash_recovery_enabled()
 
     def set_crash_recovery_enabled(self, enabled: bool) -> dict[str, Any]:
-        """Install or uninstall the crash recovery LaunchAgent."""
-        from liscribe.services.config_service import (
-            _get_app_bundle_path,
-            install_crash_recovery_agent,
-            uninstall_crash_recovery_agent,
-        )
-        try:
-            if enabled:
-                bundle = _get_app_bundle_path()
-                if bundle is None:
-                    return {"ok": False, "error": "Not running as .app bundle; crash recovery not available."}
-                install_crash_recovery_agent(bundle)
-            else:
-                uninstall_crash_recovery_agent()
-            return {"ok": True}
-        except Exception as exc:
-            return {"ok": False, "error": str(exc)}
+        """Enable or disable crash recovery watchdog."""
+        from liscribe.services.config_service import disable_crash_recovery, enable_crash_recovery
+        if enabled:
+            enable_crash_recovery()
+        else:
+            disable_crash_recovery()
+        return {"ok": True}

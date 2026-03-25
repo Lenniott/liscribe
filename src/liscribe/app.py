@@ -14,8 +14,6 @@ from __future__ import annotations
 
 import atexit
 import os
-import plistlib
-import shlex
 import subprocess
 import sys
 import threading
@@ -79,8 +77,10 @@ from liscribe.controllers.transcribe_controller import TranscribeController, Tra
 from liscribe.services.audio_service import AudioService
 from liscribe.services.config_service import (
     ConfigService,
-    _get_app_bundle_path,
-    install_crash_recovery_agent,
+    clear_clean_exit_marker,
+    is_crash_recovery_enabled,
+    spawn_crash_recovery_watchdog,
+    write_clean_exit_marker,
 )
 from liscribe.services.hotkey_service import HotkeyService
 from liscribe.services.model_service import ModelService
@@ -102,44 +102,6 @@ def _set_scribe_confirm_close(window: webview.Window, value: bool) -> None:
     """
     setattr(window, "confirm_close", value)
 
-
-LAUNCH_AGENT_LABEL = "com.liscribe.restart"
-
-
-def _schedule_restart_via_launchd(bundle: Path) -> None:
-    """Write a one-shot LaunchAgent plist that sleeps 2s, opens the app, then unloads itself.
-    The job runs under launchd so it survives when this process exits.
-    Uses bootstrap/bootout on macOS (load/unload are deprecated).
-    """
-    agents_dir = Path.home() / "Library" / "LaunchAgents"
-    agents_dir.mkdir(parents=True, exist_ok=True)
-    plist_path = agents_dir / f"{LAUNCH_AGENT_LABEL}.plist"
-    path_str = str(bundle)
-    uid = os.getuid()
-    domain = f"gui/{uid}"
-    script = f"sleep 2; open -a {shlex.quote(path_str)}; launchctl bootout {shlex.quote(domain)} {shlex.quote(LAUNCH_AGENT_LABEL)}"
-    plist = {
-        "Label": LAUNCH_AGENT_LABEL,
-        "ProgramArguments": ["/bin/sh", "-c", script],
-        "RunAtLoad": True,
-    }
-    try:
-        # Clear any stale job from a previous run that didn't unload
-        subprocess.run(
-            ["launchctl", "bootout", domain, LAUNCH_AGENT_LABEL],
-            capture_output=True,
-            timeout=5,
-        )
-        with open(plist_path, "wb") as f:
-            plistlib.dump(plist, f)
-        subprocess.run(
-            ["launchctl", "bootstrap", domain, str(plist_path)],
-            check=True,
-            capture_output=True,
-            timeout=5,
-        )
-    except Exception as exc:
-        logger.warning("Failed to schedule restart via launchd: %s", exc)
 
 
 if sys.platform != "darwin":
@@ -582,21 +544,15 @@ class LiscribeApp(rumps.App):
             js_api.set_window(window)
 
     def _schedule_restart(self) -> None:
-        """Quit and relaunch the app. Uses a launchd one-shot job when running as .app so the
-        restarter is not our child and survives when we exit.
-        """
-        bundle = _get_app_bundle_path()
-        if bundle:
-            _schedule_restart_via_launchd(bundle)
-        else:
-            # Dev mode: subprocess may be killed when we quit; launchd not used.
-            subprocess.Popen(
-                ["/bin/sh", "-c", "(sleep 2; exec \"$0\" -m liscribe ${1+\"$@\"}) &", sys.executable] + sys.argv[1:],
-                start_new_session=True,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+        """Quit and relaunch the app after a short delay."""
+        write_clean_exit_marker()
+        subprocess.Popen(
+            ["/bin/sh", "-c", "(sleep 2; exec \"$0\" -m liscribe ${1+\"$@\"}) &", sys.executable] + sys.argv[1:],
+            start_new_session=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
         AppHelper.callAfter(lambda: AppKit.NSApplication.sharedApplication().terminate_(None))
 
     # ------------------------------------------------------------------
@@ -957,14 +913,22 @@ def main() -> None:
 
     app = LiscribeApp(config=config, audio=audio, model=model, hotkey=hotkey)
 
-    # Install crash recovery agent (KeepAlive) if running as .app bundle.
-    bundle = _get_app_bundle_path()
-    if bundle:
-        try:
-            install_crash_recovery_agent(bundle)
-        except Exception:
-            # Intentional: a crash recovery install failure must not prevent app startup.
-            logger.warning("Could not install crash recovery agent", exc_info=True)
+    # Crash recovery: watchdog subprocess restarts liscribe if it dies unexpectedly.
+    # Clean exits (Quit, Restart) write a marker file so the watchdog stays quiet.
+    clear_clean_exit_marker()
+    _crashed = False
+    _orig_excepthook = sys.excepthook
+
+    def _excepthook(t, v, tb):
+        nonlocal _crashed
+        _crashed = True
+        _orig_excepthook(t, v, tb)
+
+    sys.excepthook = _excepthook
+    atexit.register(lambda: write_clean_exit_marker() if not _crashed else None)
+
+    if is_crash_recovery_enabled():
+        spawn_crash_recovery_watchdog(os.getpid())
 
     hotkey.start(
         on_scribe=lambda: AppHelper.callAfter(app.open_scribe),
